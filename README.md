@@ -1,7 +1,7 @@
 # @dotrino/profile
 
-Web Component (`<dotrino-profile>`) compartido del ecosistema **Closer
-Click**: la tarjeta de **perfil + reputación** de un peer, idéntica en todas las
+Web Component (`<dotrino-profile>`) compartido del ecosistema **Dotrino**:
+la tarjeta de **perfil + reputación** de un peer, idéntica en todas las
 apps (messenger, eco, trueque, …). Autohosteado, Shadow DOM, **sin JS de
 terceros ni cookies**. Bilingüe es/en. Temable solo por CSS custom properties.
 
