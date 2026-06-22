@@ -1,5 +1,7 @@
 # @dotrino/profile
 
+> **Parte del ecosistema [Dotrino](https://dotrino.com).** Misión: aplicaciones que resuelven problemas comunes, respetando tu privacidad — sin anuncios, sin cookies, sin rastreo de datos, sin vender tu identidad a nadie.
+
 Web Component (`<dotrino-profile>`) compartido del ecosistema **Dotrino**:
 la tarjeta de **perfil + reputación** de un peer, idéntica en todas las
 apps (messenger, eco, trueque, …). Autohosteado, Shadow DOM, **sin JS de
