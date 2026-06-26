@@ -86,6 +86,12 @@ const I18N = {
     nickPh: 'Tu nombre',
     saveName: 'Guardar',
     nameSaved: '✓ Guardado',
+    profiles: 'Tus perfiles',
+    activeProfile: 'activo',
+    useProfile: 'Usar',
+    newProfile: '+ Crear perfil',
+    unnamedProfile: 'Perfil sin nombre',
+    switchHint: 'Podés tener varios perfiles en este dispositivo; cada uno con su propia bóveda. Cambiar recarga la app.',
     labels: ['Sin calificar', 'Sospechoso', 'Dudoso', 'Confiable', 'Muy confiable', 'De total confianza'],
   },
   en: {
@@ -124,6 +130,12 @@ const I18N = {
     nickPh: 'Your name',
     saveName: 'Save',
     nameSaved: '✓ Saved',
+    profiles: 'Your profiles',
+    activeProfile: 'active',
+    useProfile: 'Use',
+    newProfile: '+ Create profile',
+    unnamedProfile: 'Unnamed profile',
+    switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
     labels: ['Unrated', 'Suspicious', 'Doubtful', 'Trustworthy', 'Very trustworthy', 'Fully trusted'],
   },
 }
@@ -252,6 +264,16 @@ const STYLE = `
   .section { display: flex; flex-direction: column; gap: 6px; position: relative; }
   .section-label { font-size: 13px; font-weight: 500; color: var(--_muted); }
   .section-label small { font-weight: 400; }
+  /* Switcher de perfiles (mode="self") */
+  .section.profiles { gap: 8px; }
+  .prof-list { display: flex; flex-direction: column; gap: 6px; }
+  .prof-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--_border); border-radius: 10px; }
+  .prof-row.current { border-color: var(--_accent); background: var(--_bg-3); }
+  .prof-av { width: 32px; height: 32px; border-radius: 8px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+  .prof-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .prof-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--_accent); border: 1px solid var(--_accent); border-radius: 999px; padding: 2px 8px; }
+  .prof-switch { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
+  .prof-new { align-self: flex-start; padding: 7px 14px; font-size: 13px; }
   .stars-row { display: flex; gap: 6px; align-items: center; }
   .star-btn {
     background: transparent; border: 0; font-size: 36px;
@@ -330,6 +352,7 @@ class DotrinoProfile extends HTMLElement {
     super()
     this.attachShadow({ mode: 'open' })
     this._provider = null
+    this._profiles = [] // multi-perfil: lista para el switcher (mode="self")
     this._my = { confianza: 0, afinidad: 0, notes: '' }
     this._endorsements = []
     this._derived = null
@@ -417,6 +440,12 @@ class DotrinoProfile extends HTMLElement {
     const token = ++this._loadToken
     this._cloudLoading = true
     this._render()
+
+    // Multi-perfil (mode="self"): lista de perfiles para el switcher GLOBAL (acción disponible
+    // en CUALQUIER app que muestre <dotrino-profile mode="self">, no solo en profile.dotrino.com).
+    if (this._self && typeof p.listProfiles === 'function') {
+      Promise.resolve(p.listProfiles()).then(list => { this._profiles = Array.isArray(list) ? list : []; this._render() }).catch(() => {})
+    }
 
     // Mi calificación + endosos locales (rápido) en paralelo con la nube (lento).
     try {
@@ -549,6 +578,13 @@ class DotrinoProfile extends HTMLElement {
     return out + '</div>'
   }
 
+  // Cambiar/crear perfil = acción global; recarga la app para tomar el nuevo perfil activo
+  // (no reactivo, por diseño). Emite 'cc-profile-switch' por si la app quiere reaccionar primero.
+  _afterProfileChange() {
+    try { this.dispatchEvent(new CustomEvent('cc-profile-switch', { bubbles: true, composed: true })) } catch (_) {}
+    try { if (typeof location !== 'undefined' && location.reload) location.reload() } catch (_) {}
+  }
+
   _render() {
     const t = this._t
     const sr = this.shadowRoot
@@ -589,6 +625,23 @@ class DotrinoProfile extends HTMLElement {
           }).join('')}</div>` : ''}
         </div>
       </div>`
+
+    // ----- Switcher de perfiles (mode="self") — acción GLOBAL (cualquier app) -----
+    if (this._self && Array.isArray(this._profiles) && this._profiles.length) {
+      body += `
+      <div class="section profiles">
+        <span class="section-label">${this._esc(t.profiles)} <small>${this._esc(t.switchHint)}</small></span>
+        <div class="prof-list">
+          ${this._profiles.map(pr => `
+          <div class="prof-row${pr.current ? ' current' : ''}">
+            <div class="prof-av" style="background:${this._avatarBg(pr.pubkey || pr.id)}">${this._esc(this._initials(pr.name || ''))}</div>
+            <span class="prof-name">${this._esc(pr.name || t.unnamedProfile)}</span>
+            ${pr.current ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>` : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn secondary prof-new" data-newprofile>${this._esc(t.newProfile)}</button>
+      </div>`
+    }
 
     // ----- Editor (confianza / afinidad / notas) -----
     if (editable) {
@@ -740,6 +793,17 @@ class DotrinoProfile extends HTMLElement {
         nickInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); this._saveName() } })
         nickInput.addEventListener('input', () => { this._nameSaved = false; this._nameErr = '' })
       }
+      // Switcher de perfiles (global): cambiar a otro perfil o crear uno nuevo.
+      qa('[data-switch]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true
+        try { await this._provider.switchProfile(b.getAttribute('data-switch')); this._afterProfileChange() } catch (_) { b.disabled = false }
+      }))
+      const newp = q('[data-newprofile]')
+      if (newp) newp.addEventListener('click', async () => {
+        newp.disabled = true
+        // Crea un perfil (sin nombre) y queda activo; tras recargar, el editor de nombre está acá mismo.
+        try { await this._provider.createProfile(''); this._afterProfileChange() } catch (_) { newp.disabled = false }
+      })
     }
 
     if (this._editable) {
@@ -869,6 +933,16 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
       }
       return identity.setMyNickname(name)
     },
+
+    // --- Multi-perfil (acción GLOBAL: cualquier app que muestre <dotrino-profile mode="self">
+    //     permite ver/crear/cambiar de perfil; no es exclusivo de profile.dotrino.com). ---
+    profilesSupported() { return !!(identity && typeof identity.listProfiles === 'function') },
+    async listProfiles() { return (identity && identity.listProfiles) ? identity.listProfiles() : [] },
+    async currentProfile() { return (identity && identity.currentProfile) ? identity.currentProfile() : null },
+    async createProfile(name) { return identity.createProfile(name) },
+    async switchProfile(id) { return identity.switchProfile(id) },
+    async renameProfile(id, name) { return identity.renameProfile(id, name) },
+    async deleteProfile(id) { return identity.deleteProfile(id) },
   }
 }
 

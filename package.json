@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/profile",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputación (confianza/afinidad, web-of-trust, reputación de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
   "type": "module",
   "main": "src/index.js",
