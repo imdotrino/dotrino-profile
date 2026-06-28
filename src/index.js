@@ -91,7 +91,11 @@ const I18N = {
     useProfile: 'Usar',
     newProfile: '+ Crear perfil',
     unnamedProfile: 'Perfil sin nombre',
-    switchHint: 'Podés tener varios perfiles en este dispositivo; cada uno con su propia bóveda. Cambiar recarga la app.',
+    switchHint: 'Puedes tener varios perfiles en este dispositivo, cada uno con su propia bóveda. Cambiar recarga la app.',
+    photo: 'Foto', photoHint: '250×250, se recorta al centro', addPhoto: '+ Agregar foto', changePhoto: 'Cambiar foto',
+    links: 'Redes y enlaces', linksHint: 'cada uno con mostrar/ocultar', addLink: '+ Agregar enlace', linkPh: 'usuario o URL',
+    fields: 'Datos', fieldsHint: 'lo que quieras mostrar', addField: '+ Agregar dato', fieldLabelPh: 'Etiqueta (p. ej. Ciudad)', fieldValuePh: 'Valor',
+    shown: 'Visible — clic para ocultar', hidden: 'Oculto — clic para mostrar',
     labels: ['Sin calificar', 'Sospechoso', 'Dudoso', 'Confiable', 'Muy confiable', 'De total confianza'],
   },
   en: {
@@ -136,6 +140,10 @@ const I18N = {
     newProfile: '+ Create profile',
     unnamedProfile: 'Unnamed profile',
     switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
+    photo: 'Photo', photoHint: '250×250, center-cropped', addPhoto: '+ Add photo', changePhoto: 'Change photo',
+    links: 'Links & socials', linksHint: 'each with show/hide', addLink: '+ Add link', linkPh: 'handle or URL',
+    fields: 'Details', fieldsHint: 'anything you want to show', addField: '+ Add detail', fieldLabelPh: 'Label (e.g. City)', fieldValuePh: 'Value',
+    shown: 'Shown — click to hide', hidden: 'Hidden — click to show',
     labels: ['Unrated', 'Suspicious', 'Doubtful', 'Trustworthy', 'Very trustworthy', 'Fully trusted'],
   },
 }
@@ -274,6 +282,20 @@ const STYLE = `
   .prof-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--_accent); border: 1px solid var(--_accent); border-radius: 999px; padding: 2px 8px; }
   .prof-switch { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
   .prof-new { align-self: flex-start; padding: 7px 14px; font-size: 13px; }
+  /* Editor de perfil (mode="self"): foto / redes / datos */
+  .avatar-wrap[data-photo] { cursor: pointer; }
+  .avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+  .avatar-edit { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; border-radius: 50%; background: var(--_accent); color: var(--_accent-text); font-size: 11px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--_bg); }
+  .pe-list { display: flex; flex-direction: column; gap: 8px; }
+  .pe-row { display: flex; align-items: center; gap: 6px; }
+  .pe-row .pe-type { flex: 0 0 auto; max-width: 38%; }
+  .pe-row .pe-val, .pe-row .pe-label { flex: 1 1 auto; min-width: 0; }
+  .pe-row select, .pe-row input { font: inherit; padding: 7px 9px; border: 1px solid var(--_border); border-radius: 8px; background: var(--_input-bg); color: var(--_text); }
+  .pe-photo { display: flex; align-items: center; gap: 8px; }
+  .eye { background: transparent; border: 1px solid var(--_border); border-radius: 8px; width: 34px; height: 34px; flex: 0 0 auto; cursor: pointer; font-size: 14px; line-height: 1; }
+  .eye.off { opacity: .5; }
+  .pe-del { background: transparent; border: none; color: var(--_muted); cursor: pointer; font-size: 15px; flex: 0 0 auto; width: 26px; }
+  .pe-del:hover { color: var(--_accent); }
   .stars-row { display: flex; gap: 6px; align-items: center; }
   .star-btn {
     background: transparent; border: 0; font-size: 36px;
@@ -343,6 +365,13 @@ const STYLE = `
   .btn.secondary:hover { background: var(--_bg-3); }
 `
 
+// Tipos de enlace/red para el editor (mode="self"). 'other' = enlace genérico.
+const LINK_TYPES = [
+  { id: 'x', label: 'X' }, { id: 'github', label: 'GitHub' }, { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'instagram', label: 'Instagram' }, { id: 'mastodon', label: 'Mastodon' }, { id: 'telegram', label: 'Telegram' },
+  { id: 'youtube', label: 'YouTube' }, { id: 'web', label: 'Sitio web' }, { id: 'email', label: 'Correo' }, { id: 'other', label: 'Otro' }
+]
+
 class DotrinoProfile extends HTMLElement {
   static get observedAttributes() {
     return ['pubkey', 'name', 'since', 'online', 'mode', 'modal', 'heading', 'lang', 'indicators']
@@ -353,6 +382,7 @@ class DotrinoProfile extends HTMLElement {
     this.attachShadow({ mode: 'open' })
     this._provider = null
     this._profiles = [] // multi-perfil: lista para el switcher (mode="self")
+    this._profile = null // mi perfil completo (avatar/links/fields) para el editor (mode="self")
     this._my = { confianza: 0, afinidad: 0, notes: '' }
     this._endorsements = []
     this._derived = null
@@ -445,6 +475,9 @@ class DotrinoProfile extends HTMLElement {
     // en CUALQUIER app que muestre <dotrino-profile mode="self">, no solo en profile.dotrino.com).
     if (this._self && typeof p.listProfiles === 'function') {
       Promise.resolve(p.listProfiles()).then(list => { this._profiles = Array.isArray(list) ? list : []; this._render() }).catch(() => {})
+    }
+    if (this._self && typeof p.getMyProfile === 'function') {
+      Promise.resolve(p.getMyProfile()).then(m => { this._profile = m || {}; this._render() }).catch(() => {})
     }
 
     // Mi calificación + endosos locales (rápido) en paralelo con la nube (lento).
@@ -585,6 +618,41 @@ class DotrinoProfile extends HTMLElement {
     try { if (typeof location !== 'undefined' && location.reload) location.reload() } catch (_) {}
   }
 
+  _genId () { try { return crypto.randomUUID().slice(0, 8) } catch (_) { return 'id' + Date.now().toString(36) } }
+
+  // Botón de visibilidad (ojo) para un ítem del perfil: avatar / link[i] / field[i].
+  _eyeBtn (kind, visible, i = '') {
+    const t = this._t
+    return `<button type="button" class="eye${visible ? '' : ' off'}" data-eye="${kind}" data-eyei="${i}" title="${this._esc(visible ? t.shown : t.hidden)}">${visible ? '👁' : '🔒'}</button>`
+  }
+
+  // Reescala/recorta (cover, centrado) una imagen a size×size y devuelve un data-URI JPEG.
+  _resizeImage (file, size = 250) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file)
+      const img = new Image()
+      img.onload = () => {
+        try {
+          const c = document.createElement('canvas'); c.width = size; c.height = size
+          const ctx = c.getContext('2d')
+          const sc = Math.max(size / img.width, size / img.height)
+          const w = img.width * sc; const h = img.height * sc
+          ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h)
+          resolve(c.toDataURL('image/jpeg', 0.85))
+        } catch (e) { reject(e) } finally { URL.revokeObjectURL(url) }
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('imagen inválida')) }
+      img.src = url
+    })
+  }
+
+  // Persiste un patch del perfil (no toca `this._profile`, que es la fuente local del editor).
+  async _saveProfile (patch) {
+    const p = this._provider
+    if (!p || typeof p.setMyProfile !== 'function') return
+    try { await p.setMyProfile(patch) } catch (_) { /* best-effort */ }
+  }
+
   _render() {
     const t = this._t
     const sr = this.shadowRoot
@@ -596,13 +664,18 @@ class DotrinoProfile extends HTMLElement {
     const online = this.hasAttribute('online') && this.getAttribute('online') !== 'false'
     const heading = this.getAttribute('heading') || (this._self ? t.headingSelf : editable ? t.headingEdit : t.headingView)
 
+    // Avatar: foto subida (self = mi perfil; otros = atributo `avatar`) o, si no hay, el círculo con iniciales.
+    const avatarUrl = this._self ? (this._profile && this._profile.avatar) : this.getAttribute('avatar')
     const confLabel = t.labels[this._hover || this._my.confianza] || t.labels[0]
 
     // ----- Identidad -----
     let body = `
       <div class="identity">
-        <div class="avatar-wrap">
-          <div class="avatar" style="background:${this._avatarBg(pk)}">${this._esc(this._initials(name))}</div>
+        <div class="avatar-wrap"${this._self ? ` data-photo title="${this._esc(t.changePhoto)}"` : ''}>
+          ${avatarUrl
+            ? `<img class="avatar avatar-img" src="${this._esc(avatarUrl)}" alt="" />`
+            : `<div class="avatar" style="background:${this._avatarBg(pk)}">${this._esc(this._initials(name))}</div>`}
+          ${this._self ? '<span class="avatar-edit">✎</span>' : ''}
           ${online ? '<span class="online-dot"></span>' : ''}
         </div>
         <div class="identity-text">
@@ -625,6 +698,47 @@ class DotrinoProfile extends HTMLElement {
           }).join('')}</div>` : ''}
         </div>
       </div>`
+
+    // ----- Editor de perfil (mode="self"): foto, redes/enlaces, datos — cada ítem mostrar/ocultar -----
+    if (this._self) {
+      const prof = this._profile || {}
+      const links = Array.isArray(prof.links) ? prof.links : []
+      const fields = Array.isArray(prof.fields) ? prof.fields : []
+      body += `
+      <input type="file" accept="image/*" data-photoinput style="display:none" />
+      ${prof.avatar ? `
+      <div class="section profile-editor">
+        <span class="section-label">${this._esc(t.photo)} <small>${this._esc(t.photoHint)}</small></span>
+        <div class="pe-photo">${this._eyeBtn('avatar', prof.avatarVisible !== false)}
+          <button type="button" class="btn secondary" data-photoclear>${this._esc(t.remove)}</button></div>
+      </div>` : ''}
+      <div class="section profile-editor">
+        <span class="section-label">${this._esc(t.links)} <small>${this._esc(t.linksHint)}</small></span>
+        <div class="pe-list">
+          ${links.map((l, i) => `
+          <div class="pe-row">
+            <select class="pe-type" data-litype="${i}">${LINK_TYPES.map(tp => `<option value="${tp.id}"${l.type === tp.id ? ' selected' : ''}>${this._esc(tp.label)}</option>`).join('')}</select>
+            <input class="pe-val" data-lival="${i}" value="${this._esc(l.value || '')}" placeholder="${this._esc(t.linkPh)}" maxlength="200" />
+            ${this._eyeBtn('link', l.visible !== false, i)}
+            <button type="button" class="pe-del" data-lidel="${i}" title="${this._esc(t.remove)}">✕</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn secondary" data-addlink>${this._esc(t.addLink)}</button>
+      </div>
+      <div class="section profile-editor">
+        <span class="section-label">${this._esc(t.fields)} <small>${this._esc(t.fieldsHint)}</small></span>
+        <div class="pe-list">
+          ${fields.map((f, i) => `
+          <div class="pe-row">
+            <input class="pe-label" data-flabel="${i}" value="${this._esc(f.label || '')}" placeholder="${this._esc(t.fieldLabelPh)}" maxlength="40" />
+            <input class="pe-val" data-fval="${i}" value="${this._esc(f.value || '')}" placeholder="${this._esc(t.fieldValuePh)}" maxlength="280" />
+            ${this._eyeBtn('field', f.visible !== false, i)}
+            <button type="button" class="pe-del" data-fdel="${i}" title="${this._esc(t.remove)}">✕</button>
+          </div>`).join('')}
+        </div>
+        <button type="button" class="btn secondary" data-addfield>${this._esc(t.addField)}</button>
+      </div>`
+    }
 
     // ----- Switcher de perfiles (mode="self") — acción GLOBAL (cualquier app) -----
     if (this._self && Array.isArray(this._profiles) && this._profiles.length) {
@@ -804,6 +918,46 @@ class DotrinoProfile extends HTMLElement {
         // Crea un perfil (sin nombre) y queda activo; tras recargar, el editor de nombre está acá mismo.
         try { await this._provider.createProfile(''); this._afterProfileChange() } catch (_) { newp.disabled = false }
       })
+
+      // ----- Editor de perfil: foto / redes / datos (this._profile = fuente local) -----
+      const ensure = () => { const p = (this._profile = this._profile || {}); if (!Array.isArray(p.links)) p.links = []; if (!Array.isArray(p.fields)) p.fields = []; return p }
+      const photoInput = q('[data-photoinput]')
+      qa('[data-photo]').forEach(el => el.addEventListener('click', () => photoInput && photoInput.click()))
+      if (photoInput) photoInput.addEventListener('change', async (e) => {
+        const file = e.target.files && e.target.files[0]; if (!file) return
+        try { const avatar = await this._resizeImage(file, 250); ensure().avatar = avatar; await this._saveProfile({ avatar }); this._render() } catch (_) { /* imagen inválida */ }
+      })
+      const pc = q('[data-photoclear]'); if (pc) pc.addEventListener('click', async () => { delete ensure().avatar; await this._saveProfile({ avatar: null }); this._render() })
+
+      // Toggle de visibilidad (ojo): avatar / link[i] / field[i].
+      qa('[data-eye]').forEach(b => b.addEventListener('click', async () => {
+        const kind = b.getAttribute('data-eye'); const i = +b.getAttribute('data-eyei'); const p = ensure()
+        if (kind === 'avatar') { p.avatarVisible = !(p.avatarVisible !== false); await this._saveProfile({ avatarVisible: p.avatarVisible }) }
+        else if (kind === 'link' && p.links[i]) { p.links[i].visible = !(p.links[i].visible !== false); await this._saveProfile({ links: p.links }) }
+        else if (kind === 'field' && p.fields[i]) { p.fields[i].visible = !(p.fields[i].visible !== false); await this._saveProfile({ fields: p.fields }) }
+        this._render()
+      }))
+
+      // Enlaces: agregar / tipo / valor / quitar.
+      const al = q('[data-addlink]'); if (al) al.addEventListener('click', () => { ensure().links.push({ id: this._genId(), type: 'web', value: '', visible: true }); this._render() })
+      qa('[data-litype]').forEach(s => s.addEventListener('change', () => { const l = ensure().links[+s.getAttribute('data-litype')]; if (l) { l.type = s.value; this._saveProfile({ links: this._profile.links }) } }))
+      qa('[data-lival]').forEach(inp => {
+        inp.addEventListener('input', () => { const l = ensure().links[+inp.getAttribute('data-lival')]; if (l) l.value = inp.value })
+        inp.addEventListener('change', () => this._saveProfile({ links: ensure().links }))
+      })
+      qa('[data-lidel]').forEach(b => b.addEventListener('click', async () => { ensure().links.splice(+b.getAttribute('data-lidel'), 1); await this._saveProfile({ links: this._profile.links }); this._render() }))
+
+      // Datos: agregar / etiqueta / valor / quitar.
+      const af = q('[data-addfield]'); if (af) af.addEventListener('click', () => { ensure().fields.push({ id: this._genId(), label: '', value: '', visible: true }); this._render() })
+      qa('[data-flabel]').forEach(inp => {
+        inp.addEventListener('input', () => { const f = ensure().fields[+inp.getAttribute('data-flabel')]; if (f) f.label = inp.value })
+        inp.addEventListener('change', () => this._saveProfile({ fields: ensure().fields }))
+      })
+      qa('[data-fval]').forEach(inp => {
+        inp.addEventListener('input', () => { const f = ensure().fields[+inp.getAttribute('data-fval')]; if (f) f.value = inp.value })
+        inp.addEventListener('change', () => this._saveProfile({ fields: ensure().fields }))
+      })
+      qa('[data-fdel]').forEach(b => b.addEventListener('click', async () => { ensure().fields.splice(+b.getAttribute('data-fdel'), 1); await this._saveProfile({ fields: this._profile.fields }); this._render() }))
     }
 
     if (this._editable) {
@@ -932,6 +1086,14 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
         throw new Error('dotrino-profile: identity.setMyNickname no disponible')
       }
       return identity.setMyNickname(name)
+    },
+
+    // --- Perfil completo (foto/redes/datos, cada ítem con visible) para mode="self" ---
+    async getMyProfile() { return (identity && identity.getMe) ? identity.getMe() : null },
+    async setMyProfile(patch) {
+      if (!identity || typeof identity.updateMe !== 'function') throw new Error('dotrino-profile: identity.updateMe no disponible')
+      const r = await identity.updateMe(patch)
+      return (r && r.me) || null
     },
 
     // --- Multi-perfil (acción GLOBAL: cualquier app que muestre <dotrino-profile mode="self">
