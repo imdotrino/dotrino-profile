@@ -93,7 +93,6 @@ const I18N = {
     activeProfile: 'activo',
     useProfile: 'Usar',
     newProfile: '+ Crear perfil',
-    createOnPage: 'Crear un perfil nuevo',
     unnamedProfile: 'Perfil sin nombre',
     switchHint: 'Puedes tener varios perfiles en este dispositivo, cada uno con su propia bóveda. Cambiar recarga la app.',
     openMyProfile: 'Abrir mi perfil', viewOnlyHint: 'Para editar tu perfil, ábrelo en tu página.',
@@ -153,7 +152,6 @@ const I18N = {
     activeProfile: 'active',
     useProfile: 'Use',
     newProfile: '+ Create profile',
-    createOnPage: 'Create a new profile',
     unnamedProfile: 'Unnamed profile',
     switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
     openMyProfile: 'Open my profile', viewOnlyHint: 'To edit your profile, open your page.',
@@ -885,7 +883,7 @@ class DotrinoProfile extends HTMLElement {
         </div>
         ${this._manage
           ? `<button type="button" class="btn secondary prof-new" data-newprofile>${this._esc(t.newProfile)}</button>`
-          : `<a class="btn secondary prof-new" href="https://profile.dotrino.com/" target="_blank" rel="noopener">${this._esc(t.createOnPage)}</a>`}
+          : ''}
       </div>`
     }
 
