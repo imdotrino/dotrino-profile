@@ -52,6 +52,13 @@
  *     'cc-profile-refresh' detail { pubkey }  (botón ↻ del web-of-trust)
  */
 
+// Avatar por defecto UNIFICADO del ecosistema: el identicon determinista del
+// pubkey (el MISMO que muestra el botón de perfil del topbar). Se importa del
+// pilar de identidad para no reimplementarlo y que sea idéntico en navbar, modal
+// y página. `@dotrino/identity` es peerDependency: toda app que muestra un perfil
+// ya lo tiene instalado (es lo que crea el provider).
+import { avatarDataUri } from '@dotrino/identity/capabilities'
+
 const I18N = {
   es: {
     headingEdit: 'Calificar contacto',
@@ -302,7 +309,8 @@ const STYLE = `
   .prof-list { display: flex; flex-direction: column; gap: 6px; }
   .prof-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--_border); border-radius: 10px; }
   .prof-row.current { border-color: var(--_accent); background: var(--_bg-3); }
-  .prof-av { width: 32px; height: 32px; border-radius: 8px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+  .prof-av { width: 32px; height: 32px; border-radius: 8px; flex: 0 0 auto; overflow: hidden; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; }
+  .prof-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .prof-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .prof-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--_accent); border: 1px solid var(--_accent); border-radius: 999px; padding: 2px 8px; }
   .prof-switch { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
@@ -734,8 +742,12 @@ class DotrinoProfile extends HTMLElement {
     const online = this.hasAttribute('online') && this.getAttribute('online') !== 'false'
     const heading = this.getAttribute('heading') || (this._self ? t.headingSelf : editable ? t.headingEdit : t.headingView)
 
-    // Avatar: foto subida (self = mi perfil; otros = atributo `avatar`) o, si no hay, el círculo con iniciales.
-    const avatarUrl = this._self ? (this._profile && this._profile.avatar) : this.getAttribute('avatar')
+    // Avatar: foto subida (self = mi perfil; otros = atributo `avatar`). Si no hay
+    // foto, el fallback es el IDENTICON del pubkey (mismo que el botón de perfil del
+    // topbar), no un círculo con iniciales — así el avatar es idéntico en navbar,
+    // modal y página. Solo cuando no hay ni foto ni pubkey se cae a las iniciales.
+    const uploaded = this._self ? (this._profile && this._profile.avatar) : this.getAttribute('avatar')
+    const avatarUrl = uploaded || (pk ? avatarDataUri(pk, { size: 160 }) : '')
     const confLabel = t.labels[this._hover || this._my.confianza] || t.labels[0]
 
     // ----- Identidad -----
@@ -876,7 +888,7 @@ class DotrinoProfile extends HTMLElement {
         <div class="prof-list">
           ${this._profiles.map(pr => `
           <div class="prof-row${pr.current ? ' current' : ''}">
-            <div class="prof-av" style="background:${this._avatarBg(pr.pubkey || pr.id)}">${this._esc(this._initials(pr.name || ''))}</div>
+            <div class="prof-av"><img src="${this._esc(pr.avatar || avatarDataUri(pr.pubkey || pr.id || '', { size: 64 }))}" alt="" /></div>
             <span class="prof-name">${this._esc(pr.name || t.unnamedProfile)}</span>
             ${pr.current ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>` : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
           </div>`).join('')}
