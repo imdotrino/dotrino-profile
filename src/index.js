@@ -93,6 +93,7 @@ const I18N = {
     createOnPage: 'Crear un perfil nuevo',
     unnamedProfile: 'Perfil sin nombre',
     switchHint: 'Puedes tener varios perfiles en este dispositivo, cada uno con su propia bóveda. Cambiar recarga la app.',
+    openMyProfile: 'Abrir mi perfil', viewOnlyHint: 'Para editar tu perfil, ábrelo en tu página.',
     photo: 'Foto', photoHint: '250×250, se recorta al centro', addPhoto: '+ Agregar foto', changePhoto: 'Cambiar foto',
     personal: 'Datos personales', personalHint: 'nombre real y contacto',
     fNombres: 'Nombres', fNombresPh: 'Tus nombres',
@@ -152,6 +153,7 @@ const I18N = {
     createOnPage: 'Create a new profile',
     unnamedProfile: 'Unnamed profile',
     switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
+    openMyProfile: 'Open my profile', viewOnlyHint: 'To edit your profile, open your page.',
     photo: 'Photo', photoHint: '250×250, center-cropped', addPhoto: '+ Add photo', changePhoto: 'Change photo',
     personal: 'Personal info', personalHint: 'real name and contact',
     fNombres: 'First name', fNombresPh: 'Your first name',
@@ -333,6 +335,13 @@ const STYLE = `
   .std-input-row { display: flex; align-items: center; gap: 6px; }
   .std-input-row input { flex: 1 1 auto; min-width: 0; font: inherit; padding: 7px 9px; border: 1px solid var(--_border); border-radius: 8px; background: var(--_input-bg); color: var(--_text); }
   .social-ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
+  /* Perfil propio en SOLO LECTURA (modal en otras apps): filas etiqueta/valor sin inputs. */
+  .ro-list { display: flex; flex-direction: column; gap: 2px; }
+  .ro-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--_border); font-size: 14px; }
+  .ro-row:last-child { border-bottom: 0; }
+  .ro-label { flex: 0 0 auto; min-width: 88px; color: var(--_muted); }
+  .ro-val { flex: 1 1 auto; min-width: 0; color: var(--_text); word-break: break-word; overflow-wrap: anywhere; }
+  .ro-hint { margin: 4px 0 0; font-size: 12px; color: var(--_muted); text-align: center; }
   .stars-row { display: flex; gap: 6px; align-items: center; }
   .star-btn {
     background: transparent; border: 0; font-size: 36px;
@@ -502,6 +511,10 @@ class DotrinoProfile extends HTMLElement {
   // calificación (no te calificas a ti mismo).
   get _self() { return this._mode === 'self' }
   get _manage() { return this.hasAttribute('manage') }
+  // Editar el perfil propio (nombre/foto/redes/datos) vive SOLO en la página profile.dotrino.com
+  // (atributo `manage`). El modal `mode="self"` de las demás apps es SOLO LECTURA: ver info,
+  // cambiar de perfil y abrir la página. `_editSelf` = perfil propio editable.
+  get _editSelf() { return this._self && this._manage }
 
   _resetState() {
     this._my = { confianza: 0, afinidad: 0, notes: '' }
@@ -726,15 +739,15 @@ class DotrinoProfile extends HTMLElement {
     // ----- Identidad -----
     let body = `
       <div class="identity">
-        <div class="avatar-wrap"${this._self ? ` data-photo title="${this._esc(t.changePhoto)}"` : ''}>
+        <div class="avatar-wrap"${this._editSelf ? ` data-photo title="${this._esc(t.changePhoto)}"` : ''}>
           ${avatarUrl
             ? `<img class="avatar avatar-img" src="${this._esc(avatarUrl)}" alt="" />`
             : `<div class="avatar" style="background:${this._avatarBg(pk)}">${this._esc(this._initials(name))}</div>`}
-          ${this._self ? '<span class="avatar-edit">✎</span>' : ''}
+          ${this._editSelf ? '<span class="avatar-edit">✎</span>' : ''}
           ${online ? '<span class="online-dot"></span>' : ''}
         </div>
         <div class="identity-text">
-          ${this._self ? `
+          ${this._editSelf ? `
           <label class="nick-edit">
             <span class="nick-label">${this._esc(t.editName)}</span>
             <div class="nick-row">
@@ -754,8 +767,8 @@ class DotrinoProfile extends HTMLElement {
         </div>
       </div>`
 
-    // ----- Editor de perfil (mode="self"): foto, redes/enlaces, datos — cada ítem mostrar/ocultar -----
-    if (this._self) {
+    // ----- Editor de perfil (mode="self" EDITABLE = página profile.dotrino.com): foto, redes/enlaces, datos -----
+    if (this._editSelf) {
       const prof = this._profile || {}
       const links = Array.isArray(prof.links) ? prof.links : []
       const fields = Array.isArray(prof.fields) ? prof.fields : []
@@ -823,6 +836,34 @@ class DotrinoProfile extends HTMLElement {
         </div>
         <button type="button" class="btn secondary" data-addfield>${this._esc(t.addField)}</button>
       </div>`
+    } else if (this._self) {
+      // ----- Perfil propio SOLO LECTURA (modal `mode="self"` en otras apps): ver la info, sin editar.
+      //       Editar (nombre/foto/redes/datos) es exclusivo de la página profile.dotrino.com. -----
+      const prof = this._profile || {}
+      const roTypes = [...SOCIAL_NETWORKS, { id: 'other', label: t.typeOther, c: '#6b7280', g: '🔗' }]
+      const roTypeOf = (id) => roTypes.find((x) => x.id === (id || 'other')) || roTypes[roTypes.length - 1]
+      const personal = STD_FIELDS.map((f) => ({ label: t['f' + f.k.charAt(0).toUpperCase() + f.k.slice(1)], value: prof[f.k] })).filter((r) => r.value)
+      const roLinks = (Array.isArray(prof.links) ? prof.links : []).filter((l) => l && l.value)
+      const roFields = (Array.isArray(prof.fields) ? prof.fields : []).filter((f) => f && (f.label || f.value))
+      if (personal.length) {
+        body += `
+      <div class="section"><span class="section-label">${this._esc(t.personal)}</span>
+        <div class="ro-list">${personal.map((r) => `<div class="ro-row"><span class="ro-label">${this._esc(r.label)}</span><span class="ro-val">${this._esc(r.value)}</span></div>`).join('')}</div>
+      </div>`
+      }
+      if (roLinks.length) {
+        body += `
+      <div class="section"><span class="section-label">${this._esc(t.links)}</span>
+        <div class="ro-list">${roLinks.map((l) => { const nt = roTypeOf(l.type); return `<div class="ro-row"><span class="social-ico" style="background:${nt.c}" title="${this._esc(nt.label)}">${this._esc(nt.g)}</span><span class="ro-val">${this._esc(l.value)}</span></div>` }).join('')}</div>
+      </div>`
+      }
+      if (roFields.length) {
+        body += `
+      <div class="section"><span class="section-label">${this._esc(t.fields)}</span>
+        <div class="ro-list">${roFields.map((f) => `<div class="ro-row"><span class="ro-label">${this._esc(f.label || '')}</span><span class="ro-val">${this._esc(f.value || '')}</span></div>`).join('')}</div>
+      </div>`
+      }
+      body += `<p class="ro-hint">${this._esc(t.viewOnlyHint)}</p>`
     }
 
     // ----- Switcher de perfiles (mode="self") — acción GLOBAL (cualquier app) -----
@@ -953,6 +994,12 @@ class DotrinoProfile extends HTMLElement {
       <footer class="foot">
         ${isModal ? `<button class="btn secondary" data-cancel>${this._esc(t.cancel)}</button>` : ''}
         <button class="btn primary" data-save ${this._saving ? 'disabled' : ''}>${this._esc(this._saving ? t.saving : t.save)}</button>
+      </footer>`
+      // Perfil propio SOLO LECTURA (modal en otras apps): la única acción es abrir MI página de perfil
+      // (profile.dotrino.com), donde sí puedo editar. Cambiar de perfil va en el switcher de arriba.
+      : (this._self && !this._manage) ? `
+      <footer class="foot">
+        <a class="btn primary" href="https://profile.dotrino.com/" target="_blank" rel="noopener">${this._esc(t.openMyProfile)}</a>
       </footer>` : ''
 
     let html = `<style>${STYLE}</style>`
