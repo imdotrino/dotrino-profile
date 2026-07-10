@@ -103,6 +103,8 @@ const I18N = {
     social: 'Redes sociales', socialHint: 'cada una con mostrar/ocultar',
     otherLinks: 'Otros enlaces', otherLinksHint: 'sitios o enlaces sueltos',
     addLink: '+ Agregar enlace', linkPh: 'usuario o URL',
+    links: 'Redes y enlaces', linksHint: 'agrégalos uno a uno; elige el tipo',
+    typeOther: 'Otro enlace', addNetwork: '+ Agregar red o enlace',
     fields: 'Datos', fieldsHint: 'lo que quieras mostrar', addField: '+ Agregar dato', fieldLabelPh: 'Etiqueta (p. ej. Ciudad)', fieldValuePh: 'Valor',
     shown: 'Visible — clic para ocultar', hidden: 'Oculto — clic para mostrar',
     labels: ['Sin calificar', 'Sospechoso', 'Dudoso', 'Confiable', 'Muy confiable', 'De total confianza'],
@@ -160,6 +162,8 @@ const I18N = {
     social: 'Social networks', socialHint: 'each with show/hide',
     otherLinks: 'Other links', otherLinksHint: 'sites or loose links',
     addLink: '+ Add link', linkPh: 'handle or URL',
+    links: 'Networks & links', linksHint: 'add them one by one; pick the type',
+    typeOther: 'Other link', addNetwork: '+ Add network or link',
     fields: 'Details', fieldsHint: 'anything you want to show', addField: '+ Add detail', fieldLabelPh: 'Label (e.g. City)', fieldValuePh: 'Value',
     shown: 'Shown — click to hide', hidden: 'Hidden — click to show',
     labels: ['Unrated', 'Suspicious', 'Doubtful', 'Trustworthy', 'Very trustworthy', 'Fully trusted'],
@@ -309,6 +313,16 @@ const STYLE = `
   .pe-row .pe-type { flex: 0 0 auto; max-width: 38%; }
   .pe-row .pe-val, .pe-row .pe-label { flex: 1 1 auto; min-width: 0; }
   .pe-row select, .pe-row input { font: inherit; padding: 7px 9px; border: 1px solid var(--_border); border-radius: 8px; background: var(--_input-bg); color: var(--_text); }
+  /* Fila de enlace/red en móvil: el selector de tipo (con ícono, ojo y borrar) arriba, el valor
+     a lo ancho debajo — así no se aprieta el input en pantallas angostas. */
+  @media (max-width: 460px) {
+    .pe-row.link-row { flex-wrap: wrap; }
+    .pe-row.link-row .social-ico { order: 1; }
+    .pe-row.link-row .pe-type { order: 2; flex: 1 1 auto; max-width: none; }
+    .pe-row.link-row .eye { order: 3; }
+    .pe-row.link-row .pe-del { order: 4; }
+    .pe-row.link-row .pe-val { order: 5; flex: 1 1 100%; }
+  }
   .pe-photo { display: flex; align-items: center; gap: 8px; }
   .eye { background: transparent; border: 1px solid var(--_border); border-radius: 8px; width: 34px; height: 34px; flex: 0 0 auto; cursor: pointer; font-size: 14px; line-height: 1; }
   .eye.off { opacity: .5; }
@@ -318,8 +332,7 @@ const STYLE = `
   .std-field > label { font-size: 12px; color: var(--_muted); }
   .std-input-row { display: flex; align-items: center; gap: 6px; }
   .std-input-row input { flex: 1 1 auto; min-width: 0; font: inherit; padding: 7px 9px; border: 1px solid var(--_border); border-radius: 8px; background: var(--_input-bg); color: var(--_text); }
-  .social-row .social-ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
-  .eye-spacer { flex: 0 0 auto; width: 34px; }
+  .social-ico { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; font-weight: 700; line-height: 1; }
   .stars-row { display: flex; gap: 6px; align-items: center; }
   .star-btn {
     background: transparent; border: 0; font-size: 36px;
@@ -750,10 +763,10 @@ class DotrinoProfile extends HTMLElement {
       // (las filas y handlers se referencian por id; sin esto, dos links colisionarían).
       const seenIds = new Set()
       for (const l of links) { if (!l.id || seenIds.has(l.id)) l.id = this._genId(); seenIds.add(l.id) }
-      // Cada red social "engancha" el PRIMER link de su tipo; los demás (duplicados o tipos legados
-      // como múltiples 'web') caen en "Otros enlaces" para que SIGAN siendo editables/borrables.
-      const boundIds = new Set()
-      for (const n of SOCIAL_NETWORKS) { const l = links.find((x) => x.type === n.id); if (l) boundIds.add(l.id) }
+      // Tipos disponibles: las redes conocidas + "Otro enlace" (genérico). Agregar una red y agregar
+      // un enlace es LO MISMO: se agregan uno a uno y cada fila elige su tipo (con ícono/placeholder).
+      const linkTypes = [...SOCIAL_NETWORKS, { id: 'other', label: t.typeOther, c: '#6b7280', g: '🔗', ph: t.linkPh }]
+      const linkTypeOf = (id) => linkTypes.find((x) => x.id === (id || 'other')) || linkTypes[linkTypes.length - 1]
       body += `
       <input type="file" accept="image/*" data-photoinput style="display:none" />
       ${prof.avatar ? `
@@ -779,31 +792,23 @@ class DotrinoProfile extends HTMLElement {
         </div>
       </div>
       <div class="section profile-editor">
-        <span class="section-label">${this._esc(t.social)} <small>${this._esc(t.socialHint)}</small></span>
+        <span class="section-label">${this._esc(t.links)} <small>${this._esc(t.linksHint)}</small></span>
         <div class="pe-list">
-          ${SOCIAL_NETWORKS.map((n) => {
-            const l = links.find((x) => x.type === n.id)
-            const val = l ? l.value : ''
+          ${links.map((l) => {
+            const nt = linkTypeOf(l.type)
             return `
-          <div class="pe-row social-row">
-            <span class="social-ico" style="background:${n.c}" title="${this._esc(n.label)}">${this._esc(n.g)}</span>
-            <input class="pe-val" data-social="${n.id}" value="${this._esc(val)}" placeholder="${this._esc(n.ph)}" maxlength="200" />
-            ${val ? this._eyeBtn('social', !l || l.visible !== false, n.id) : '<span class="eye-spacer"></span>'}
+          <div class="pe-row link-row">
+            <span class="social-ico" style="background:${nt.c}" title="${this._esc(nt.label)}">${this._esc(nt.g)}</span>
+            <select class="pe-type" data-litype="${this._esc(l.id)}" aria-label="${this._esc(nt.label)}">
+              ${linkTypes.map((n) => `<option value="${this._esc(n.id)}"${n.id === nt.id ? ' selected' : ''}>${this._esc(n.label)}</option>`).join('')}
+            </select>
+            <input class="pe-val" data-lival="${this._esc(l.id)}" value="${this._esc(l.value || '')}" placeholder="${this._esc(nt.ph)}" maxlength="200" />
+            ${this._eyeBtn('link', l.visible !== false, l.id)}
+            <button type="button" class="pe-del" data-lidel="${this._esc(l.id)}" title="${this._esc(t.remove)}">✕</button>
           </div>`
           }).join('')}
         </div>
-      </div>
-      <div class="section profile-editor">
-        <span class="section-label">${this._esc(t.otherLinks)} <small>${this._esc(t.otherLinksHint)}</small></span>
-        <div class="pe-list">
-          ${links.filter((l) => !boundIds.has(l.id)).map((l) => `
-          <div class="pe-row">
-            <input class="pe-val" data-lival="${this._esc(l.id)}" value="${this._esc(l.value || '')}" placeholder="${this._esc(t.linkPh)}" maxlength="200" />
-            ${this._eyeBtn('link', l.visible !== false, l.id)}
-            <button type="button" class="pe-del" data-lidel="${this._esc(l.id)}" title="${this._esc(t.remove)}">✕</button>
-          </div>`).join('')}
-        </div>
-        <button type="button" class="btn secondary" data-addlink>${this._esc(t.addLink)}</button>
+        <button type="button" class="btn secondary" data-addlink>${this._esc(t.addNetwork)}</button>
       </div>
       <div class="section profile-editor">
         <span class="section-label">${this._esc(t.fields)} <small>${this._esc(t.fieldsHint)}</small></span>
@@ -1011,12 +1016,11 @@ class DotrinoProfile extends HTMLElement {
       })
       const pc = q('[data-photoclear]'); if (pc) pc.addEventListener('click', async () => { delete ensure().avatar; await this._saveProfile({ avatar: null }); this._render() })
 
-      // Toggle de visibilidad (ojo): avatar / link(id) / social(type) / field[i] / std(campo).
+      // Toggle de visibilidad (ojo): avatar / link(id) / field[i] / std(campo).
       qa('[data-eye]').forEach(b => b.addEventListener('click', async () => {
         const kind = b.getAttribute('data-eye'); const key = b.getAttribute('data-eyei'); const p = ensure()
         if (kind === 'avatar') { p.avatarVisible = !(p.avatarVisible !== false); await this._saveProfile({ avatarVisible: p.avatarVisible }) }
         else if (kind === 'link') { const l = p.links.find(x => x.id === key); if (l) { l.visible = !(l.visible !== false); await this._saveProfile({ links: p.links }) } }
-        else if (kind === 'social') { const l = p.links.find(x => x.type === key); if (l) { l.visible = !(l.visible !== false); await this._saveProfile({ links: p.links }) } }
         else if (kind === 'field') { const l = p.fields[+key]; if (l) { l.visible = !(l.visible !== false); await this._saveProfile({ fields: p.fields }) } }
         else if (kind === 'std') { const f = STD_FIELDS.find(x => x.k === key); const vk = key + 'Visible'; const cur = f && f.sens ? (p[vk] === true) : (p[vk] !== false); p[vk] = !cur; await this._saveProfile({ [vk]: p[vk] }) }
         this._render()
@@ -1028,21 +1032,14 @@ class DotrinoProfile extends HTMLElement {
         inp.addEventListener('change', () => this._saveProfile({ [inp.getAttribute('data-std')]: inp.value }))
       })
 
-      // Redes sociales (filas fijas, respaldadas en `links` por `type`). `input` actualiza el modelo
-      // local (sobrevive a un re-render asíncrono) y `change` persiste. upsert/quitar por tipo.
-      const upsertSocial = (type, raw) => {
-        const links = ensure().links; const val = raw.trim()
-        const i = links.findIndex(x => x.type === type)
-        if (val) { if (i >= 0) links[i].value = val; else links.push({ id: this._genId(), type, value: val, visible: true }) }
-        else if (i >= 0) links.splice(i, 1)
-        return links
-      }
-      qa('[data-social]').forEach(inp => {
-        inp.addEventListener('input', () => upsertSocial(inp.getAttribute('data-social'), inp.value))
-        inp.addEventListener('change', async () => { await this._saveProfile({ links: upsertSocial(inp.getAttribute('data-social'), inp.value) }); this._render() })
-      })
+      // Tipo de cada enlace (red conocida u "Otro"): actualiza el modelo, persiste y re-render
+      // (para refrescar ícono + placeholder). Agregar una red y agregar un enlace es LO MISMO.
+      qa('[data-litype]').forEach(sel => sel.addEventListener('change', async () => {
+        const l = ensure().links.find(x => x.id === sel.getAttribute('data-litype'))
+        if (l) { l.type = sel.value; await this._saveProfile({ links: ensure().links }); this._render() }
+      }))
 
-      // Otros enlaces: agregar / valor / quitar (por id; solo enlaces sin red conocida).
+      // Agregar enlace/red (uno a uno): nace como "Otro" y el usuario elige el tipo en la fila.
       const al = q('[data-addlink]'); if (al) al.addEventListener('click', () => { ensure().links.push({ id: this._genId(), type: 'other', value: '', visible: true }); this._render() })
       qa('[data-lival]').forEach(inp => {
         inp.addEventListener('input', () => { const l = ensure().links.find(x => x.id === inp.getAttribute('data-lival')); if (l) l.value = inp.value })
@@ -1050,8 +1047,9 @@ class DotrinoProfile extends HTMLElement {
       })
       qa('[data-lidel]').forEach(b => b.addEventListener('click', async () => { const id = b.getAttribute('data-lidel'); this._profile.links = ensure().links.filter(x => x.id !== id); await this._saveProfile({ links: this._profile.links }); this._render() }))
 
-      // Datos: agregar / etiqueta / valor / quitar.
-      const af = q('[data-addfield]'); if (af) af.addEventListener('click', () => { ensure().fields.push({ id: this._genId(), label: '', value: '', visible: true }); this._render() })
+      // Datos: agregar / etiqueta / valor / quitar. Un dato nuevo nace PRIVADO (oculto): el usuario
+      // lo hace visible con el ojo si quiere compartirlo.
+      const af = q('[data-addfield]'); if (af) af.addEventListener('click', () => { ensure().fields.push({ id: this._genId(), label: '', value: '', visible: false }); this._render() })
       qa('[data-flabel]').forEach(inp => {
         inp.addEventListener('input', () => { const f = ensure().fields[+inp.getAttribute('data-flabel')]; if (f) f.label = inp.value })
         inp.addEventListener('change', () => this._saveProfile({ fields: ensure().fields }))
