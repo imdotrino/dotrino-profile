@@ -637,7 +637,20 @@ class DotrinoProfile extends HTMLElement {
       this._nameSaved = true
       this._emit('cc-profile-name', { pubkey: this._pubkey, name })
       this.setAttribute('name', name) // refleja el nombre nuevo (re-render por attributeChangedCallback)
+      // El switcher de perfiles de abajo muestra el nombre del perfil ACTIVO: hay
+      // que actualizarlo también, no solo el nombre de arriba. Parche inmediato en
+      // la lista ya cargada (feedback instantáneo) + refresco desde el vault (que
+      // ya persistió el nick antes de resolver setMyName → listProfiles lo trae).
+      if (Array.isArray(this._profiles)) {
+        const cur = this._profiles.find((pr) => pr && pr.current)
+        if (cur) cur.name = name
+      }
       this._render()
+      if (typeof p.listProfiles === 'function') {
+        Promise.resolve(p.listProfiles())
+          .then((list) => { this._profiles = Array.isArray(list) ? list : this._profiles; this._render() })
+          .catch(() => {})
+      }
     } catch (e) {
       this._savingName = false
       this._nameErr = (e && e.message) || this._t.saveError
