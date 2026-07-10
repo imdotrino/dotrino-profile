@@ -37,6 +37,9 @@
  *               | 'self' (TU perfil: nombre editable que se guarda en el vault,
  *                 sin calificación; conserva los paneles de reputación)
  *     modal     booleano: envuelve la tarjeta en backdrop + header/footer
+ *     allow-edit booleano: en mode="self", permite EDITAR aunque sea modal (por defecto el
+ *               modal self es solo-lectura fuera de profile.dotrino.com). Úsalo p. ej. en el
+ *               onboarding "ponte un apodo". La edición plena vive en la página (`manage`).
  *     heading   título del header (override)
  *     lang      'es' | 'en' | 'auto' (default 'auto')
  *   Propiedad JS:
@@ -437,7 +440,7 @@ const STD_FIELDS = [
 
 class DotrinoProfile extends HTMLElement {
   static get observedAttributes() {
-    return ['pubkey', 'name', 'since', 'online', 'mode', 'modal', 'heading', 'lang', 'indicators', 'manage']
+    return ['pubkey', 'name', 'since', 'online', 'mode', 'modal', 'heading', 'lang', 'indicators', 'manage', 'allow-edit']
   }
 
   constructor() {
@@ -512,9 +515,10 @@ class DotrinoProfile extends HTMLElement {
   get _self() { return this._mode === 'self' }
   get _manage() { return this.hasAttribute('manage') }
   // Editar el perfil propio (nombre/foto/redes/datos) vive SOLO en la página profile.dotrino.com
-  // (atributo `manage`). El modal `mode="self"` de las demás apps es SOLO LECTURA: ver info,
-  // cambiar de perfil y abrir la página. `_editSelf` = perfil propio editable.
-  get _editSelf() { return this._self && this._manage }
+  // (atributo `manage`) o cuando un app lo pide explícitamente con el flag `allow-edit` (p. ej. el
+  // onboarding "ponte un apodo": abre el modal editable). El modal `mode="self"` SIN esos flags es
+  // SOLO LECTURA: ver info, cambiar de perfil y abrir la página. `_editSelf` = perfil propio editable.
+  get _editSelf() { return this._self && (this._manage || this.hasAttribute('allow-edit')) }
 
   _resetState() {
     this._my = { confianza: 0, afinidad: 0, notes: '' }
