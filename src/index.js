@@ -999,9 +999,10 @@ class DotrinoProfile extends HTMLElement {
         ${isModal ? `<button class="btn secondary" data-cancel>${this._esc(t.cancel)}</button>` : ''}
         <button class="btn primary" data-save ${this._saving ? 'disabled' : ''}>${this._esc(this._saving ? t.saving : t.save)}</button>
       </footer>`
-      // Perfil propio SOLO LECTURA (modal en otras apps): la única acción es abrir MI página de perfil
-      // (profile.dotrino.com), donde sí puedo editar. Cambiar de perfil va en el switcher de arriba.
-      : (this._self && !this._manage) ? `
+      // Perfil propio SOLO LECTURA (modal en otras apps, sin edición): la única acción es abrir MI
+      // página de perfil (profile.dotrino.com). Si el modal ES editable (allow-edit/manage) no va este
+      // botón: ya se edita inline (Save del nombre) y la X cierra. Cambiar de perfil va en el switcher.
+      : (this._self && !this._editSelf) ? `
       <footer class="foot">
         <a class="btn primary" href="https://profile.dotrino.com/" target="_blank" rel="noopener">${this._esc(t.openMyProfile)}</a>
       </footer>` : ''
