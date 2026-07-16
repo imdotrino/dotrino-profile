@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/profile",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "peerDependencies": {
     "@dotrino/identity": ">=0.16.0"
   },

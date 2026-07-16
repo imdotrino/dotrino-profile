@@ -1188,7 +1188,8 @@ if (typeof customElements !== 'undefined' && !customElements.get('dotrino-profil
  * @param {object} cfg.identity    instancia conectada de dotrino-identity
  *                                 (usa `me.publickey`, `getRatingsForSubject(pk)`).
  * @param {object} cfg.reputation  instancia de createVaultReputation(identity)
- *                                 (usa `getRatings`, `reputationOf`, `rate`).
+ *                                 (usa `myIndicatorsFor`, `reputationOf`, `rate`;
+ *                                 cae a `getRatings` con @dotrino/reputation < 0.7).
  * @returns {object} provider
  */
 export function createVaultProfileProvider({ identity, reputation } = {}) {
@@ -1208,12 +1209,20 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
         }
       } catch (_) { /* best-effort */ }
       try {
-        if (typeof reputation.getRatings === 'function') {
-          const { attestations } = await reputation.getRatings(pubkey)
+        // El registro guarda UNA atestación por eje, así que hay que fusionarlas
+        // TODAS: quedarse con la primera (`find`) devuelve un solo eje y la
+        // afinidad se perdía (aparecía en 0 al reabrir la tarjeta).
+        let ind = null
+        if (typeof reputation.myIndicatorsFor === 'function') {
+          ind = await reputation.myIndicatorsFor(pubkey)          // @dotrino/reputation ≥ 0.7
+        } else if (typeof reputation.getRatings === 'function') {
+          const { attestations } = await reputation.getRatings(pubkey)  // < 0.7: fusión a mano
           const me = myPubkey()
-          const mine = (attestations || []).find(a => a && a.issuer === me)
-          if (mine && mine.indicators && typeof mine.indicators.afinidad === 'number') afinidad = mine.indicators.afinidad
+          ind = Object.assign({}, ...(attestations || [])
+            .filter(a => a && a.issuer === me)
+            .map(a => a.indicators || {}))
         }
+        if (ind && typeof ind.afinidad === 'number') afinidad = ind.afinidad
       } catch (_) { /* best-effort */ }
       return { confianza, afinidad, notes }
     },
