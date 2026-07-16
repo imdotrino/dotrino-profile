@@ -604,8 +604,13 @@ class DotrinoProfile extends HTMLElement {
     this._error = ''
     this._saving = true
     this._render()
-    const indicators = { confianza: this._my.confianza }
-    if (this._my.afinidad > 0) indicators.afinidad = this._my.afinidad
+    // CERO ES CERO: no existe "sin calificar". Un 0 es una calificación como
+    // cualquier otra y se manda igual. Antes la afinidad solo se enviaba si era
+    // > 0, así que bajarla a 0 NO la borraba: la atestación vieja sobrevivía en
+    // el registro, la tarjeta la volvía a leer y el usuario no tenía forma de
+    // quitar una afinidad que ya no opinaba. (Para retirar el eje entero, y no
+    // calificarlo con 0, está `removeChannel`.)
+    const indicators = { confianza: this._my.confianza, afinidad: this._my.afinidad }
     try {
       await p.rate(pk, indicators, this._my.notes)
       this._saving = false
