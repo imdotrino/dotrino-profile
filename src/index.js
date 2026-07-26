@@ -58,6 +58,8 @@
 // y página. `@dotrino/identity` es peerDependency: toda app que muestra un perfil
 // ya lo tiene instalado (es lo que crea el provider).
 import { avatarDataUri } from '@dotrino/identity/capabilities'
+// La huella legible de una llave (`AB12-CD34`). Módulo aparte y sin dependencias.
+import { keyLabel } from '@dotrino/identity/keyid'
 
 const I18N = {
   es: {
@@ -457,6 +459,9 @@ class DotrinoProfile extends HTMLElement {
     this._profile = null // mi perfil completo (avatar/links/fields) para el editor (mode="self")
     this._my = { confianza: 0, afinidad: 0, notes: '' }
     this._endorsements = []
+    this._keyLabel = ''      // huella legible de la llave mostrada (AB12-CD34)
+    this._keyLabelFor = null
+    this._etiquetas = {}     // pubkey → huella legible, para las listas (quién te calificó)
     this._derived = null
     this._indicators = [] // indicadores derivados a mostrar (p. ej. ELO por juego)
     this._cloud = null
@@ -529,6 +534,9 @@ class DotrinoProfile extends HTMLElement {
   _resetState() {
     this._my = { confianza: 0, afinidad: 0, notes: '' }
     this._endorsements = []
+    this._keyLabel = ''      // huella legible de la llave mostrada (AB12-CD34)
+    this._keyLabelFor = null
+    this._etiquetas = {}     // pubkey → huella legible, para las listas (quién te calificó)
     this._derived = null
     this._indicators = []
     this._cloud = null
@@ -543,6 +551,7 @@ class DotrinoProfile extends HTMLElement {
   /* ---- carga de datos vía provider ---- */
   async reload() {
     const pk = this._pubkey
+    this._refreshKeyLabel(pk)
     const p = this._provider
     if (!pk || !p) { this._render(); return }
     const token = ++this._loadToken
@@ -686,9 +695,46 @@ class DotrinoProfile extends HTMLElement {
     try { return new Date(Number(ts)).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' }) }
     catch { return '' }
   }
+  /**
+   * Lo que se muestra de una llave. NUNCA el JWK: recortarlo (`{"crv":"P-25…`) no es un
+   * identificador, es un error de programa a la vista del usuario. Se enseña su huella
+   * `AB12-CD34`, la misma que ya se usa al emparejar y en el acta del perfil.
+   * Se calcula aparte (es asíncrona) y se guarda en `_keyLabel`; mientras llega, nada.
+   */
   _shortKey(k) {
-    k = k || ''
-    return k.length > 20 ? k.slice(0, 12) + '…' + k.slice(-4) : k
+    return this._keyLabel || ''
+  }
+
+  /**
+   * Huellas legibles de una lista de llaves (quién te ha calificado). Sin esto, la lista
+   * mostraría trozos de JWK, que no le dicen nada a nadie.
+   */
+  _refreshEtiquetas(pubs) {
+    const faltan = [...new Set(pubs.filter((k) => k && !this._etiquetas[k]))]
+    if (!faltan.length) return
+    Promise.all(faltan.map(async (k) => [k, await keyLabel(k)]))
+      .then((pares) => {
+        for (const [k, l] of pares) this._etiquetas[k] = l
+        this._render()
+      }).catch(() => {})
+  }
+
+  /**
+   * Dónde se crea un perfil: una PÁGINA propia, común a todo el ecosistema. Antes este
+   * botón creaba un perfil vacío al vuelo desde cualquier app —un «Perfil sin nombre»
+   * aparecido de la nada—; ahora lleva a `profile.dotrino.com/create`, donde le pones
+   * nombre y solo existe cuando le das a guardar. Se vuelve a donde estabas.
+   */
+  _createUrl() {
+    const volver = typeof location !== 'undefined' ? location.href : ''
+    return 'https://profile.dotrino.com/create' + (volver ? '?return=' + encodeURIComponent(volver) : '')
+  }
+
+  /** Recalcula la huella legible cuando cambia la llave que se está mostrando. */
+  _refreshKeyLabel(pk) {
+    if (!pk || pk === this._keyLabelFor) return
+    this._keyLabelFor = pk
+    keyLabel(pk).then((l) => { this._keyLabel = l; this._render() }).catch(() => {})
   }
   _esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
@@ -911,9 +957,7 @@ class DotrinoProfile extends HTMLElement {
             ${pr.current ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>` : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
           </div>`).join('')}
         </div>
-        ${this._manage
-          ? `<button type="button" class="btn secondary prof-new" data-newprofile>${this._esc(t.newProfile)}</button>`
-          : ''}
+        <a class="btn secondary prof-new" href="${this._esc(this._createUrl())}">${this._esc(t.newProfile)}</a>
       </div>`
     }
 
@@ -946,12 +990,13 @@ class DotrinoProfile extends HTMLElement {
 
     // ----- Web of Trust (endosos locales) -----
     let wot = ''
+    this._refreshEtiquetas(this._endorsements.map((e) => e.ratedBy))
     if (this._endorsements.length === 0) {
       wot = `<div class="empty">${this._esc(t.wotEmpty)}</div>`
     } else {
       const rows = this._endorsements.slice(0, 5).map(e => `
         <li>
-          <code class="key">${this._esc((e.ratedBy || '').slice(0, 12))}…</code>
+          <code class="key">${this._esc(this._etiquetas[e.ratedBy] || '')}</code>
           <span class="r">${this._stars(e.rating)}</span>
           <span class="when">${this._esc(this._fmtDate(e.issuedAt))}</span>
         </li>`).join('')
@@ -1079,13 +1124,6 @@ class DotrinoProfile extends HTMLElement {
         b.disabled = true
         try { await this._provider.switchProfile(b.getAttribute('data-switch')); this._afterProfileChange() } catch (_) { b.disabled = false }
       }))
-      const newp = q('[data-newprofile]')
-      if (newp) newp.addEventListener('click', async () => {
-        newp.disabled = true
-        // Crea un perfil (sin nombre) y queda activo; tras recargar, el editor de nombre está acá mismo.
-        try { await this._provider.createProfile(''); this._afterProfileChange() } catch (_) { newp.disabled = false }
-      })
-
       // ----- Editor de perfil: foto / redes / datos (this._profile = fuente local) -----
       const ensure = () => { const p = (this._profile = this._profile || {}); if (!Array.isArray(p.links)) p.links = []; if (!Array.isArray(p.fields)) p.fields = []; return p }
       const photoInput = q('[data-photoinput]')
