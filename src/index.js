@@ -104,6 +104,12 @@ const I18N = {
     newProfile: '+ Crear perfil',
     unnamedProfile: 'Perfil sin nombre',
     switchHint: 'Puedes tener varios perfiles en este dispositivo, cada uno con su propia bóveda. Cambiar recarga la app.',
+    delProfile: 'Borrar',
+    delAsk: '¿Borrar esta cuenta de este aparato?',
+    delWhat: 'Se va con todo lo suyo y no se puede deshacer. Lo que otras personas guardaron o dijeron de ella no se borra: eso vive en sus aparatos.',
+    delYes: 'Sí, borrarla',
+    delNo: 'Mejor no',
+    delHint: 'Para borrar la cuenta que estás usando, cambia primero a otra.',
     openMyProfile: 'Abrir mi perfil', viewOnlyHint: 'Para editar tu perfil, ábrelo en tu página.',
     photo: 'Foto', photoHint: '250×250, se recorta al centro', addPhoto: '+ Agregar foto', changePhoto: 'Cambiar foto',
     personal: 'Datos personales', personalHint: 'nombre real y contacto',
@@ -163,6 +169,12 @@ const I18N = {
     newProfile: '+ Create profile',
     unnamedProfile: 'Unnamed profile',
     switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
+    delProfile: 'Delete',
+    delAsk: 'Delete this account from this device?',
+    delWhat: 'It goes with everything in it and cannot be undone. What other people saved or said about it is not deleted: that lives on their devices.',
+    delYes: 'Yes, delete it',
+    delNo: 'Never mind',
+    delHint: 'To delete the account you are using, switch to another one first.',
     openMyProfile: 'Open my profile', viewOnlyHint: 'To edit your profile, open your page.',
     photo: 'Photo', photoHint: '250×250, center-cropped', addPhoto: '+ Add photo', changePhoto: 'Change photo',
     personal: 'Personal info', personalHint: 'real name and contact',
@@ -316,6 +328,16 @@ const STYLE = `
   .prof-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
   .prof-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--_accent); border: 1px solid var(--_accent); border-radius: 999px; padding: 2px 8px; }
   .prof-switch { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
+  .prof-del { flex: 0 0 auto; padding: 5px 10px; font-size: 13px; opacity: .75; }
+  .prof-del:hover { opacity: 1; color: var(--_danger, #e5484d); border-color: var(--_danger, #e5484d); }
+  .prof-hint { font-size: 12px; color: var(--_muted); margin: 0; }
+  /* Confirmar borrado: ocupa la fila entera, para que decir «sí» sea un acto aparte y
+     no un clic al lado del de cambiar de cuenta. */
+  .prof-row.asking { border-color: var(--_danger, #e5484d); }
+  .prof-del-ask { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+  .prof-del-ask span { font-size: 12px; color: var(--_muted); }
+  .prof-del-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .prof-del-btns .btn { padding: 5px 12px; font-size: 13px; }
   .prof-new { align-self: flex-start; padding: 7px 14px; font-size: 13px; }
   /* Editor de perfil (mode="self"): foto / redes / datos */
   .avatar-wrap[data-photo] { cursor: pointer; }
@@ -950,13 +972,32 @@ class DotrinoProfile extends HTMLElement {
       <div class="section profiles">
         <span class="section-label">${this._esc(t.profiles)} <small>${this._esc(t.switchHint)}</small></span>
         <div class="prof-list">
-          ${this._profiles.map(pr => `
+          ${this._profiles.map(pr => this._delAsk === pr.id ? `
+          <div class="prof-row asking">
+            <div class="prof-del-ask">
+              <strong>${this._esc(t.delAsk)}</strong>
+              <span>${this._esc(t.delWhat)}</span>
+              <div class="prof-del-btns">
+                <button type="button" class="btn danger" data-del-yes="${this._esc(pr.id)}">${this._esc(t.delYes)}</button>
+                <button type="button" class="btn secondary" data-del-no="1">${this._esc(t.delNo)}</button>
+              </div>
+            </div>
+          </div>` : `
           <div class="prof-row${pr.current ? ' current' : ''}">
             <div class="prof-av"><img src="${this._esc(pr.avatar || avatarDataUri(pr.pubkey || pr.id || '', { size: 64 }))}" alt="" /></div>
             <span class="prof-name">${this._esc(pr.name || t.unnamedProfile)}</span>
-            ${pr.current ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>` : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
+            ${pr.current
+              ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>`
+              : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
+            ${/* Borrar solo en la PÁGINA del perfil (manage) y nunca la que estás usando:
+                  para borrar esa, primero cambias de cuenta. Así no hay que decidir a
+                  dónde te manda la app en mitad del borrado. */''}
+            ${this._manage && !pr.current && this._profiles.length > 1
+              ? `<button type="button" class="btn ghost prof-del" data-del="${this._esc(pr.id)}" title="${this._esc(t.delProfile)}">${this._esc(t.delProfile)}</button>`
+              : ''}
           </div>`).join('')}
         </div>
+        ${this._manage ? `<p class="prof-hint">${this._esc(t.delHint)}</p>` : ''}
         <a class="btn secondary prof-new" href="${this._esc(this._createUrl())}">${this._esc(t.newProfile)}</a>
       </div>`
     }
@@ -1123,6 +1164,20 @@ class DotrinoProfile extends HTMLElement {
       qa('[data-switch]').forEach(b => b.addEventListener('click', async () => {
         b.disabled = true
         try { await this._provider.switchProfile(b.getAttribute('data-switch')); this._afterProfileChange() } catch (_) { b.disabled = false }
+      }))
+      // Borrar una cuenta: dos pasos, y el segundo ocupa la fila entera. Es irreversible,
+      // así que no puede quedar a un clic de distancia del botón de al lado.
+      qa('[data-del]').forEach(b => b.addEventListener('click', () => { this._delAsk = b.getAttribute('data-del'); this._render() }))
+      qa('[data-del-no]').forEach(b => b.addEventListener('click', () => { this._delAsk = null; this._render() }))
+      qa('[data-del-yes]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true
+        const id = b.getAttribute('data-del-yes')
+        try {
+          await this._provider.deleteProfile(id)
+          this._profiles = (this._profiles || []).filter(p => p.id !== id)
+          this._delAsk = null
+          this._render()
+        } catch (_) { b.disabled = false }
       }))
       // ----- Editor de perfil: foto / redes / datos (this._profile = fuente local) -----
       const ensure = () => { const p = (this._profile = this._profile || {}); if (!Array.isArray(p.links)) p.links = []; if (!Array.isArray(p.fields)) p.fields = []; return p }
