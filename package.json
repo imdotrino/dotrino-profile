@@ -4,7 +4,7 @@
   "peerDependencies": {
     "@dotrino/identity": ">=0.33.0"
   },
-  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputación (confianza/afinidad, web-of-trust, reputación de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
+  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputaci\u00f3n (confianza/afinidad, web-of-trust, reputaci\u00f3n de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
   "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -34,5 +34,11 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/imdotrino/dotrino-profile.git"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit"
   }
 }
