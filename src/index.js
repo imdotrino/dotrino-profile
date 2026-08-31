@@ -102,6 +102,7 @@ const I18N = {
     activeProfile: 'activo',
     useProfile: 'Usar',
     newProfile: '+ Crear perfil',
+    adoptProfile: '↧ Adoptar un perfil',
     unnamedProfile: 'Perfil sin nombre',
     switchHint: 'Puedes tener varios perfiles en este dispositivo, cada uno con su propia bóveda. Cambiar recarga la app.',
     delProfile: 'Borrar',
@@ -167,6 +168,7 @@ const I18N = {
     activeProfile: 'active',
     useProfile: 'Use',
     newProfile: '+ Create profile',
+    adoptProfile: '↧ Adopt a profile',
     unnamedProfile: 'Unnamed profile',
     switchHint: 'You can have several profiles on this device, each with its own vault. Switching reloads the app.',
     delProfile: 'Delete',
@@ -338,7 +340,8 @@ const STYLE = `
   .prof-del-ask span { font-size: 12px; color: var(--_muted); }
   .prof-del-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .prof-del-btns .btn { padding: 5px 12px; font-size: 13px; }
-  .prof-new { align-self: flex-start; padding: 7px 14px; font-size: 13px; }
+  .prof-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .prof-new, .prof-adopt { padding: 7px 14px; font-size: 13px; }
   /* Editor de perfil (mode="self"): foto / redes / datos */
   .avatar-wrap[data-photo] { cursor: pointer; }
   .avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
@@ -752,6 +755,24 @@ class DotrinoProfile extends HTMLElement {
     return 'https://profile.dotrino.com/create' + (volver ? '?return=' + encodeURIComponent(volver) : '')
   }
 
+  /**
+   * ADOPTAR UN PERFIL: leer una invitación y traer aquí una cuenta que ya existe.
+   *
+   * Va junto a «crear perfil» porque es la otra mitad de la misma pregunta —de dónde sale
+   * la cuenta que vas a usar—, y porque este conmutador es lo ÚNICO que está en todas las
+   * apps: se abre desde el botón de perfil del topbar. La pantalla de emparejar tiene sus
+   * propias condiciones y estados, y llegar a ella dependía de estar en la página correcta
+   * de la bóveda; en la app de Dotrino, que no tiene barra de direcciones, no se llegaba.
+   *
+   * `/d` es la pantalla dedicada y no tiene ninguna condición: atiende cualquier
+   * invitación —entrar en una bóveda, entregarle esta cuenta o estrenar una— porque el
+   * modo lo trae el propio QR.
+   */
+  _adoptUrl() {
+    const volver = typeof location !== 'undefined' ? location.href : ''
+    return 'https://vault.dotrino.com/d' + (volver ? '?return=' + encodeURIComponent(volver) : '')
+  }
+
   /** Recalcula la huella legible cuando cambia la llave que se está mostrando. */
   _refreshKeyLabel(pk) {
     if (!pk || pk === this._keyLabelFor) return
@@ -998,7 +1019,10 @@ class DotrinoProfile extends HTMLElement {
           </div>`).join('')}
         </div>
         ${this._manage ? `<p class="prof-hint">${this._esc(t.delHint)}</p>` : ''}
-        <a class="btn secondary prof-new" href="${this._esc(this._createUrl())}">${this._esc(t.newProfile)}</a>
+        <div class="prof-actions">
+          <a class="btn secondary prof-new" href="${this._esc(this._createUrl())}">${this._esc(t.newProfile)}</a>
+          <a class="btn secondary prof-adopt" href="${this._esc(this._adoptUrl())}">${this._esc(t.adoptProfile)}</a>
+        </div>
       </div>`
     }
 

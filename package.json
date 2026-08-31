@@ -1,10 +1,10 @@
 {
   "name": "@dotrino/profile",
-  "version": "0.16.0",
+  "version": "0.17.0",
   "peerDependencies": {
     "@dotrino/identity": ">=0.33.0"
   },
-  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputaci\u00f3n (confianza/afinidad, web-of-trust, reputaci\u00f3n de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
+  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputación (confianza/afinidad, web-of-trust, reputación de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
   "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
