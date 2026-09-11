@@ -40,6 +40,9 @@
  *     allow-edit booleano: en mode="self", permite EDITAR aunque sea modal (por defecto el
  *               modal self es solo-lectura fuera de profile.dotrino.com). Úsalo p. ej. en el
  *               onboarding "ponte un apodo". La edición plena vive en la página (`manage`).
+ *     no-reputation booleano: oculta los dos paneles de reputación (web of trust y red).
+ *               Para apps que enseñan el perfil y no califican a nadie —el gestor de
+ *               contraseñas, p. ej.—, donde salían vacíos y con un botón que no hace nada.
  *     heading   título del header (override)
  *     lang      'es' | 'en' | 'auto' (default 'auto')
  *   Propiedad JS:
@@ -473,7 +476,7 @@ const STD_FIELDS = [
 
 class DotrinoProfile extends HTMLElement {
   static get observedAttributes() {
-    return ['pubkey', 'name', 'since', 'online', 'mode', 'modal', 'heading', 'lang', 'indicators', 'manage', 'allow-edit']
+    return ['pubkey', 'name', 'since', 'online', 'mode', 'modal', 'heading', 'lang', 'indicators', 'manage', 'allow-edit', 'no-reputation']
   }
 
   constructor() {
@@ -555,6 +558,15 @@ class DotrinoProfile extends HTMLElement {
   // onboarding "ponte un apodo": abre el modal editable). El modal `mode="self"` SIN esos flags es
   // SOLO LECTURA: ver info, cambiar de perfil y abrir la página. `_editSelf` = perfil propio editable.
   get _editSelf() { return this._self && (this._manage || this.hasAttribute('allow-edit')) }
+  /**
+   * SIN REPUTACIÓN: la tarjeta es solo el perfil.
+   *
+   * Hay apps que enseñan tu perfil y no tienen nada que ver con la reputación — el gestor
+   * de contraseñas, por ejemplo, donde no hay a quién calificar. Ahí los paneles de
+   * «lo que dicen otros» y «reputación de la red» salían vacíos y con un botón de recargar
+   * que no recarga nada: ruido que además promete algo que esa app no hace.
+   */
+  get _noRep() { return this.hasAttribute('no-reputation') }
 
   _resetState() {
     this._my = { confianza: 0, afinidad: 0, notes: '' }
@@ -1054,6 +1066,7 @@ class DotrinoProfile extends HTMLElement {
     }
 
     // ----- Web of Trust (endosos locales) -----
+    if (!this._noRep) {
     let wot = ''
     this._refreshEtiquetas(this._endorsements.map((e) => e.ratedBy))
     if (this._endorsements.length === 0) {
@@ -1127,6 +1140,7 @@ class DotrinoProfile extends HTMLElement {
         </div>
         ${cloud}
       </div>`
+    }   // fin de `if (!this._noRep)`: los dos paneles de reputación van juntos
 
     if (editable) body += `<p class="privacy">${this._esc(t.privacy)}</p>`
     if (this._error) body += `<p class="error">${this._esc(this._error)}</p>`
