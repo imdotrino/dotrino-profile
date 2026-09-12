@@ -467,11 +467,19 @@ const SOCIAL_NETWORKS = [
   { id: 'web', label: 'Sitio web', c: '#6b7280', g: '🌐', ph: 'https://…' }
 ]
 // Campos personales estándar (fijos). `sens` = sensible (oculto por defecto al compartir).
+//
+// `ac` es el token de `autocomplete` del estándar HTML, y no es decoración: sin él lo
+// único que identifica a un campo es su **placeholder, que está traducido**, así que el
+// mismo campo cambiaba de identidad al cambiar de idioma. Peor: dos campos podían acabar
+// reclamando la misma clase — en español la etiqueta del nombre visible contiene la
+// palabra «nombre», chocaba con «Nombres» y el gestor de contraseñas dejaba a Nombres sin
+// marcador (dueño, 2026-09-11: «ya asoma en Nombres pero no en Dirección»). El token va en
+// inglés y no depende del idioma, que es justo lo que hace falta para emparejar.
 const STD_FIELDS = [
-  { k: 'nombres', max: 60 }, { k: 'apellidos', max: 60 },
-  { k: 'email', max: 120, type: 'email' },
-  { k: 'telefono', max: 40, type: 'tel', sens: true },
-  { k: 'direccion', max: 200, sens: true }
+  { k: 'nombres', max: 60, ac: 'given-name' }, { k: 'apellidos', max: 60, ac: 'family-name' },
+  { k: 'email', max: 120, type: 'email', ac: 'email' },
+  { k: 'telefono', max: 40, type: 'tel', sens: true, ac: 'tel' },
+  { k: 'direccion', max: 200, sens: true, ac: 'street-address' }
 ]
 
 class DotrinoProfile extends HTMLElement {
@@ -881,15 +889,15 @@ class DotrinoProfile extends HTMLElement {
         </div>
         <div class="identity-text">
           ${this._editSelf ? `
-          <label class="nick-edit">
-            <span class="nick-label">${this._esc(t.editName)}</span>
+          <div class="nick-edit">
+            <label class="nick-label" for="pe-nick">${this._esc(t.editName)}</label>
             <div class="nick-row">
-              <input class="nick-input" type="text" maxlength="40" value="${this._esc(name === t.contact ? '' : name)}" placeholder="${this._esc(t.nickPh)}" />
+              <input id="pe-nick" class="nick-input" type="text" maxlength="40" autocomplete="nickname" value="${this._esc(name === t.contact ? '' : name)}" placeholder="${this._esc(t.nickPh)}" />
               <button type="button" class="btn primary nick-save" data-savename ${this._savingName ? 'disabled' : ''}>${this._esc(this._savingName ? t.saving : t.saveName)}</button>
             </div>
             ${this._nameSaved ? `<span class="nick-saved">${this._esc(t.nameSaved)}</span>` : ''}
             ${this._nameErr ? `<span class="error">${this._esc(this._nameErr)}</span>` : ''}
-          </label>` : `<div class="name">${this._esc(name)}</div>`}
+          </div>` : `<div class="name">${this._esc(name)}</div>`}
           <code class="pubkey">${this._esc(this._shortKey(pk))}</code>
           ${since ? `<div class="since">${this._esc(t.knownSince)} ${this._esc(this._fmtDate(since))}</div>` : ''}
           ${this._indicators.length ? `<div class="ind-badges">${this._indicators.map(i => {
@@ -928,9 +936,9 @@ class DotrinoProfile extends HTMLElement {
             const shown = f.sens ? (prof[f.k + 'Visible'] === true) : (prof[f.k + 'Visible'] !== false)
             return `
           <div class="std-field">
-            <label>${this._esc(t['f' + f.k.charAt(0).toUpperCase() + f.k.slice(1)])}</label>
+            <label for="pe-${f.k}">${this._esc(t['f' + f.k.charAt(0).toUpperCase() + f.k.slice(1)])}</label>
             <div class="std-input-row">
-              <input class="pe-val" data-std="${f.k}" type="${f.type || 'text'}" value="${this._esc(prof[f.k] || '')}" placeholder="${this._esc(t['f' + f.k.charAt(0).toUpperCase() + f.k.slice(1) + 'Ph'])}" maxlength="${f.max}" />
+              <input id="pe-${f.k}" class="pe-val" data-std="${f.k}" type="${f.type || 'text'}" autocomplete="${f.ac}" value="${this._esc(prof[f.k] || '')}" placeholder="${this._esc(t['f' + f.k.charAt(0).toUpperCase() + f.k.slice(1) + 'Ph'])}" maxlength="${f.max}" />
               ${this._eyeBtn('std', shown, f.k)}
             </div>
           </div>`
