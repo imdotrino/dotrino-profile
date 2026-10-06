@@ -53,6 +53,7 @@
  *     'cc-profile-name'    detail { pubkey, name }  (mode="self", tras guardar tu nombre)
  *     'cc-profile-close'
  *     'cc-profile-refresh' detail { pubkey }  (botón ↻ del web-of-trust)
+ *     'cc-profile-block'   detail { pubkey, blocked }  (bloquear/desbloquear: privado, ya aplicado)
  */
 
 // Avatar por defecto UNIFICADO del ecosistema: el identicon determinista del
@@ -113,7 +114,13 @@ const I18N = {
     delWhat: 'Se va con todo lo suyo y no se puede deshacer. Lo que otras personas guardaron o dijeron de ella no se borra: eso vive en sus aparatos.',
     delYes: 'Sí, borrarla',
     delNo: 'Mejor no',
-    delHint: 'Para borrar la cuenta que estás usando, cambia primero a otra.',
+    delAskCurrent: '¿Borrar la cuenta que estás usando?',
+    delWhatCurrent: 'Se va con todo lo suyo y no se puede deshacer. La app pasará a otro de tus perfiles.',
+    delWhatOnly: 'Es tu única cuenta en este aparato: se va con todo lo suyo, no se puede deshacer y se creará una nueva y vacía.',
+    block: 'Bloquear', unblock: 'Desbloquear', blockedBadge: 'Bloqueado',
+    blockLabel: 'Bloqueo',
+    blockHint: 'No recibirás sus mensajes ni sus solicitudes. No se le avisa y no se publica: es solo tuyo.',
+    blockedHint: 'No recibes sus mensajes ni sus solicitudes. Solo tú lo sabes.',
     openMyProfile: 'Abrir mi perfil', viewOnlyHint: 'Para editar tu perfil, ábrelo en tu página.',
     photo: 'Foto', photoHint: '250×250, se recorta al centro', addPhoto: '+ Agregar foto', changePhoto: 'Cambiar foto',
     personal: 'Datos personales', personalHint: 'nombre real y contacto',
@@ -179,7 +186,13 @@ const I18N = {
     delWhat: 'It goes with everything in it and cannot be undone. What other people saved or said about it is not deleted: that lives on their devices.',
     delYes: 'Yes, delete it',
     delNo: 'Never mind',
-    delHint: 'To delete the account you are using, switch to another one first.',
+    delAskCurrent: 'Delete the account you are using?',
+    delWhatCurrent: 'It goes with everything in it and cannot be undone. The app will switch to another of your profiles.',
+    delWhatOnly: 'It is your only account on this device: it goes with everything in it, cannot be undone, and a new empty one will be created.',
+    block: 'Block', unblock: 'Unblock', blockedBadge: 'Blocked',
+    blockLabel: 'Block',
+    blockHint: 'You will not get their messages or requests. They are not told and it is not published: it is only yours.',
+    blockedHint: 'You do not get their messages or requests. Only you know.',
     openMyProfile: 'Open my profile', viewOnlyHint: 'To edit your profile, open your page.',
     photo: 'Photo', photoHint: '250×250, center-cropped', addPhoto: '+ Add photo', changePhoto: 'Change photo',
     personal: 'Personal info', personalHint: 'real name and contact',
@@ -334,6 +347,10 @@ const STYLE = `
   .prof-badge { flex: 0 0 auto; font-size: 11px; font-weight: 700; color: var(--_accent); border: 1px solid var(--_accent); border-radius: 999px; padding: 2px 8px; }
   .prof-switch { flex: 0 0 auto; padding: 5px 12px; font-size: 13px; }
   .prof-del { flex: 0 0 auto; padding: 5px 10px; font-size: 13px; opacity: .75; }
+  .section.block .block-hint { display: block; color: var(--_muted, #8a8a8a); margin: 4px 0 8px; line-height: 1.35; }
+  .section.block .block-btn { align-self: flex-start; }
+  .btn.danger { background: var(--_danger, #e5484d); border-color: var(--_danger, #e5484d); color: #fff; }
+  .prof-badge.blocked { margin-left: 6px; color: var(--_danger, #e5484d); border-color: var(--_danger, #e5484d); }
   .prof-del:hover { opacity: 1; color: var(--_danger, #e5484d); border-color: var(--_danger, #e5484d); }
   .prof-hint { font-size: 12px; color: var(--_muted); margin: 0; }
   /* Confirmar borrado: ocupa la fila entera, para que decir «sí» sea un acto aparte y
@@ -612,6 +629,15 @@ class DotrinoProfile extends HTMLElement {
       Promise.resolve(p.getMyProfile()).then(m => { this._profile = m || {}; this._render() }).catch(() => {})
     }
 
+    // ¿Lo tengo bloqueado? (privado, de mi libro de contactos)
+    this._blockable = !this._self && typeof p.getBlocked === 'function' && typeof p.setBlocked === 'function'
+    if (this._blockable) {
+      try {
+        const b = await p.getBlocked(pk)
+        if (token !== this._loadToken) return
+        this._blocked = b === true
+      } catch (_) { this._blockable = false }
+    }
     // Mi calificación + endosos locales (rápido) en paralelo con la nube (lento).
     try {
       if (typeof p.getMyRating === 'function') {
@@ -648,6 +674,21 @@ class DotrinoProfile extends HTMLElement {
     } catch (_) { this._cloud = null } finally {
       if (token === this._loadToken) { this._cloudLoading = false; this._render() }
     }
+  }
+
+  /** Bloquear o desbloquear: se aplica ya y avisa con `cc-profile-block` { pubkey, blocked }. */
+  async _setBlocked(blocked) {
+    const p = this._provider
+    const pk = this._pubkey
+    if (!p || !pk || this._blocking) return
+    this._blocking = true; this._error = ''; this._render()
+    try {
+      await p.setBlocked(pk, blocked)
+      this._blocked = blocked
+      this._emit('cc-profile-block', { pubkey: pk, blocked })
+    } catch (e) {
+      this._error = (e && e.message) || this._t.saveError
+    } finally { this._blocking = false; this._render() }
   }
 
   async _save() {
@@ -1016,8 +1057,8 @@ class DotrinoProfile extends HTMLElement {
           ${this._profiles.map(pr => this._delAsk === pr.id ? `
           <div class="prof-row asking">
             <div class="prof-del-ask">
-              <strong>${this._esc(t.delAsk)}</strong>
-              <span>${this._esc(t.delWhat)}</span>
+              <strong>${this._esc(pr.current ? t.delAskCurrent : t.delAsk)}</strong>
+              <span>${this._esc(!pr.current ? t.delWhat : this._profiles.length > 1 ? t.delWhatCurrent : t.delWhatOnly)}</span>
               <div class="prof-del-btns">
                 <button type="button" class="btn danger" data-del-yes="${this._esc(pr.id)}">${this._esc(t.delYes)}</button>
                 <button type="button" class="btn secondary" data-del-no="1">${this._esc(t.delNo)}</button>
@@ -1030,15 +1071,14 @@ class DotrinoProfile extends HTMLElement {
             ${pr.current
               ? `<span class="prof-badge">${this._esc(t.activeProfile)}</span>`
               : `<button type="button" class="btn secondary prof-switch" data-switch="${this._esc(pr.id)}">${this._esc(t.useProfile)}</button>`}
-            ${/* Borrar solo en la PÁGINA del perfil (manage) y nunca la que estás usando:
-                  para borrar esa, primero cambias de cuenta. Así no hay que decidir a
-                  dónde te manda la app en mitad del borrado. */''}
-            ${this._manage && !pr.current && this._profiles.length > 1
+            ${/* Borrar solo en la PÁGINA del perfil (manage), y TAMBIÉN la que estás usando y
+                  la única (dueño, 2026-10-05: borrar tu cuenta es un derecho, y la App Store
+                  lo exige). La alerta de dos pasos de arriba dice qué pasa en cada caso. */''}
+            ${this._manage
               ? `<button type="button" class="btn ghost prof-del" data-del="${this._esc(pr.id)}" title="${this._esc(t.delProfile)}">${this._esc(t.delProfile)}</button>`
               : ''}
           </div>`).join('')}
         </div>
-        ${this._manage ? `<p class="prof-hint">${this._esc(t.delHint)}</p>` : ''}
         <div class="prof-actions">
           <a class="btn secondary prof-new" href="${this._esc(this._createUrl())}">${this._esc(t.newProfile)}</a>
           <a class="btn secondary prof-adopt" href="${this._esc(this._adoptUrl())}">${this._esc(t.adoptProfile)}</a>
@@ -1071,6 +1111,19 @@ class DotrinoProfile extends HTMLElement {
         <textarea rows="3" maxlength="500" placeholder="${this._esc(t.notesPh)}">${this._esc(this._my.notes)}</textarea>
         <span class="counter">${(this._my.notes || '').length} / 500</span>
       </label>`
+      // BLOQUEO: un indicador aparte de las estrellas (dueño, 2026-10-05: «no mezclar las
+      // cosas»). Privado: no se firma ni se publica, viaja con tus contactos. Se aplica al
+      // pulsar, sin esperar a «Guardar», porque no es parte de la calificación.
+      if (this._blockable) {
+        body += `
+      <div class="section block${this._blocked ? ' on' : ''}" data-testid="profile-block">
+        <span class="section-label">${this._esc(t.blockLabel)}
+          ${this._blocked ? `<span class="prof-badge blocked">${this._esc(t.blockedBadge)}</span>` : ''}</span>
+        <small class="block-hint">${this._esc(this._blocked ? t.blockedHint : t.blockHint)}</small>
+        <button type="button" class="btn ${this._blocked ? 'secondary' : 'danger'} block-btn" data-block="${this._blocked ? '0' : '1'}"
+          ${this._blocking ? 'disabled' : ''} data-testid="profile-block-toggle">${this._esc(this._blocked ? t.unblock : t.block)}</button>
+      </div>`
+      }
     }
 
     // ----- Web of Trust (endosos locales) -----
@@ -1196,6 +1249,7 @@ class DotrinoProfile extends HTMLElement {
     if (backdrop) backdrop.addEventListener('click', (e) => { if (e.target === backdrop) this._close() })
     qa('[data-cancel]').forEach(b => b.addEventListener('click', () => this._close()))
     const save = q('[data-save]'); if (save) save.addEventListener('click', () => this._save())
+    const blk = q('[data-block]'); if (blk) blk.addEventListener('click', () => this._setBlocked(blk.getAttribute('data-block') === '1'))
     const refresh = q('[data-refresh]'); if (refresh) refresh.addEventListener('click', () => this._refresh())
     const reload = q('[data-reload]'); if (reload) reload.addEventListener('click', () => this.reload())
 
@@ -1219,7 +1273,11 @@ class DotrinoProfile extends HTMLElement {
         b.disabled = true
         const id = b.getAttribute('data-del-yes')
         try {
+          const era = (this._profiles || []).find(p => p.id === id)
           await this._provider.deleteProfile(id)
+          // Era la que estás usando: la app entera corría con ella, así que se recarga, igual
+          // que al cambiar de cuenta (si no queda ninguna, el arranque estrena una nueva).
+          if (era && era.current) { this._afterProfileChange(); return }
           this._profiles = (this._profiles || []).filter(p => p.id !== id)
           this._delAsk = null
           this._render()
@@ -1406,6 +1464,12 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
     async rate(pubkey, indicators, notes) {
       return reputation.rate(pubkey, indicators, { notes })
     },
+
+    // --- Bloqueo (privado, en tu libro de contactos; @dotrino/identity ≥ 0.108) ---
+    ...(identity && typeof identity.setBlocked === 'function' ? {
+      async getBlocked(pubkey) { const peer = await identity.getPeer(pubkey); return !!(peer && peer.blocked === true) },
+      async setBlocked(pubkey, blocked) { return identity.setBlocked(pubkey, blocked) },
+    } : {}),
 
     // --- Tu propia identidad (para mode="self") ---
     myPubkey,

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>profile bloqueo</title>
+<!-- Prueba manual: servir la raíz del ecosistema y abrir /dotrino-profile/test/block.html -->
+<script type="importmap">{"imports":{
+ "@dotrino/identity/capabilities":"/dotrino-identity/vault/capabilities.js",
+ "@dotrino/identity/keyid":"/dotrino-identity/vault/keyid.js"}}</script>
+</head><body style="background:#eee;margin:0">
+<dotrino-profile id="p" mode="edit" pubkey="PEER-KEY" name="Ana"></dotrino-profile>
+<script type="module">
+import { createVaultProfileProvider } from '/dotrino-profile/src/index.js'
+// Identity falsa: solo lo que usa la tarjeta.
+const peers = { 'PEER-KEY': { publickey: 'PEER-KEY' } }
+window.calls = []
+const identity = {
+  me: { publickey: 'ME' },
+  async getPeer (pk) { return peers[pk] || null },
+  async setBlocked (pk, b) { window.calls.push(['setBlocked', pk, b]); peers[pk] = { ...peers[pk], blocked: !!b }; return peers[pk] },
+}
+const reputation = { async rate () { window.calls.push(['rate']) } }
+const el = document.getElementById('p')
+el.addEventListener('cc-profile-block', (e) => window.calls.push(['event', e.detail]))
+el.provider = createVaultProfileProvider({ identity, reputation })
+</script></body></html>
