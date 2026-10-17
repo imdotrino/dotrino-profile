@@ -514,13 +514,13 @@ class DotrinoProfile extends HTMLElement {
     this._endorsements = []
     this._keyLabel = ''      // huella legible de la llave mostrada (AB12-CD34)
     this._keyLabelFor = null
-    this._etiquetas = {}     // pubkey → huella legible, para las listas (quién te calificó)
+    this._keyLabels = {}     // pubkey → huella legible, para las listas (quién te calificó)
     this._derived = null
     this._indicators = [] // indicadores derivados a mostrar (p. ej. ELO por juego)
     this._cloud = null
     this._cloudLoading = true
     this._hover = 0
-    this._hoverAfin = 0
+    this._hoverAffinity = 0
     this._saving = false
     this._error = ''
     this._savingName = false
@@ -598,13 +598,13 @@ class DotrinoProfile extends HTMLElement {
     this._endorsements = []
     this._keyLabel = ''      // huella legible de la llave mostrada (AB12-CD34)
     this._keyLabelFor = null
-    this._etiquetas = {}     // pubkey → huella legible, para las listas (quién te calificó)
+    this._keyLabels = {}     // pubkey → huella legible, para las listas (quién te calificó)
     this._derived = null
     this._indicators = []
     this._cloud = null
     this._cloudLoading = true
     this._hover = 0
-    this._hoverAfin = 0
+    this._hoverAffinity = 0
     this._error = ''
     this._nameSaved = false
     this._nameErr = ''
@@ -795,12 +795,12 @@ class DotrinoProfile extends HTMLElement {
    * Huellas legibles de una lista de llaves (quién te ha calificado). Sin esto, la lista
    * mostraría trozos de JWK, que no le dicen nada a nadie.
    */
-  _refreshEtiquetas(pubs) {
-    const faltan = [...new Set(pubs.filter((k) => k && !this._etiquetas[k]))]
-    if (!faltan.length) return
-    Promise.all(faltan.map(async (k) => [k, await keyLabel(k)]))
-      .then((pares) => {
-        for (const [k, l] of pares) this._etiquetas[k] = l
+  _refreshLabels(pubs) {
+    const missing = [...new Set(pubs.filter((k) => k && !this._keyLabels[k]))]
+    if (!missing.length) return
+    Promise.all(missing.map(async (k) => [k, await keyLabel(k)]))
+      .then((pairs) => {
+        for (const [k, l] of pairs) this._keyLabels[k] = l
         this._render()
       }).catch(() => {})
   }
@@ -812,8 +812,8 @@ class DotrinoProfile extends HTMLElement {
    * nombre y solo existe cuando le das a guardar. Se vuelve a donde estabas.
    */
   _createUrl() {
-    const volver = typeof location !== 'undefined' ? location.href : ''
-    return 'https://profile.dotrino.com/create' + (volver ? '?return=' + encodeURIComponent(volver) : '')
+    const returnTo = typeof location !== 'undefined' ? location.href : ''
+    return 'https://profile.dotrino.com/create' + (returnTo ? '?return=' + encodeURIComponent(returnTo) : '')
   }
 
   /**
@@ -830,8 +830,8 @@ class DotrinoProfile extends HTMLElement {
    * modo lo trae el propio QR.
    */
   _adoptUrl() {
-    const volver = typeof location !== 'undefined' ? location.href : ''
-    return 'https://vault.dotrino.com/d' + (volver ? '?return=' + encodeURIComponent(volver) : '')
+    const returnTo = typeof location !== 'undefined' ? location.href : ''
+    return 'https://vault.dotrino.com/d' + (returnTo ? '?return=' + encodeURIComponent(returnTo) : '')
   }
 
   /** Recalcula la huella legible cuando cambia la llave que se está mostrando. */
@@ -887,7 +887,7 @@ class DotrinoProfile extends HTMLElement {
           resolve(c.toDataURL('image/jpeg', 0.85))
         } catch (e) { reject(e) } finally { URL.revokeObjectURL(url) }
       }
-      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('imagen inválida')) }
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('invalid image')) }
       img.src = url
     })
   }
@@ -1100,9 +1100,9 @@ class DotrinoProfile extends HTMLElement {
       </div>
       <div class="section">
         <span class="section-label">${this._esc(t.afinidad)} <small>${this._esc(t.afinidadHint)}</small></span>
-        ${this._starsRow('afin', this._my.afinidad, this._hoverAfin)}
+        ${this._starsRow('afin', this._my.afinidad, this._hoverAffinity)}
         <div class="rating-meta">
-          <span class="rating-num">${this._hoverAfin || this._my.afinidad || 0} ${t.of5}</span>
+          <span class="rating-num">${this._hoverAffinity || this._my.afinidad || 0} ${t.of5}</span>
           ${this._my.afinidad > 0 ? `<button class="clear" data-clear="afin">${this._esc(t.remove)}</button>` : ''}
         </div>
       </div>
@@ -1129,13 +1129,13 @@ class DotrinoProfile extends HTMLElement {
     // ----- Web of Trust (endosos locales) -----
     if (!this._noRep) {
     let wot = ''
-    this._refreshEtiquetas(this._endorsements.map((e) => e.ratedBy))
+    this._refreshLabels(this._endorsements.map((e) => e.ratedBy))
     if (this._endorsements.length === 0) {
       wot = `<div class="empty">${this._esc(t.wotEmpty)}</div>`
     } else {
       const rows = this._endorsements.slice(0, 5).map(e => `
         <li>
-          <code class="key">${this._esc(this._etiquetas[e.ratedBy] || '')}</code>
+          <code class="key">${this._esc(this._keyLabels[e.ratedBy] || '')}</code>
           <span class="r">${this._stars(e.rating)}</span>
           <span class="when">${this._esc(this._fmtDate(e.issuedAt))}</span>
         </li>`).join('')
@@ -1347,14 +1347,14 @@ class DotrinoProfile extends HTMLElement {
           this._render()
         })
         btn.addEventListener('mouseenter', () => {
-          if (kind === 'conf') this._hover = n; else this._hoverAfin = n
+          if (kind === 'conf') this._hover = n; else this._hoverAffinity = n
           this._render()
         })
       })
       qa('[data-row]').forEach(row => {
         const kind = row.getAttribute('data-row')
         row.addEventListener('mouseleave', () => {
-          if (kind === 'conf') this._hover = 0; else this._hoverAfin = 0
+          if (kind === 'conf') this._hover = 0; else this._hoverAffinity = 0
           this._render()
         })
       })
@@ -1395,7 +1395,7 @@ if (typeof customElements !== 'undefined' && !customElements.get('dotrino-profil
  * @returns {object} provider
  */
 export function createVaultProfileProvider({ identity, reputation } = {}) {
-  if (!reputation) throw new Error('dotrino-profile: se requiere `reputation` (createVaultReputation)')
+  if (!reputation) throw new Error('dotrino-profile: `reputation` is required (createVaultReputation)')
   const myPubkey = () => (identity && identity.me && identity.me.publickey) || null
 
   return {
@@ -1476,7 +1476,7 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
     getMyName() { return (identity && identity.me && identity.me.nickname) || null },
     async setMyName(name) {
       if (!identity || typeof identity.setMyNickname !== 'function') {
-        throw new Error('dotrino-profile: identity.setMyNickname no disponible')
+        throw new Error('dotrino-profile: identity.setMyNickname not available')
       }
       return identity.setMyNickname(name)
     },
@@ -1484,7 +1484,7 @@ export function createVaultProfileProvider({ identity, reputation } = {}) {
     // --- Perfil completo (foto/redes/datos, cada ítem con visible) para mode="self" ---
     async getMyProfile() { return (identity && identity.getMe) ? identity.getMe() : null },
     async setMyProfile(patch) {
-      if (!identity || typeof identity.updateMe !== 'function') throw new Error('dotrino-profile: identity.updateMe no disponible')
+      if (!identity || typeof identity.updateMe !== 'function') throw new Error('dotrino-profile: identity.updateMe not available')
       const r = await identity.updateMe(patch)
       return (r && r.me) || null
     },
