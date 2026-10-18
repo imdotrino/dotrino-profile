@@ -687,7 +687,7 @@ class DotrinoProfile extends HTMLElement {
       this._blocked = blocked
       this._emit('cc-profile-block', { pubkey: pk, blocked })
     } catch (e) {
-      this._error = (e && e.message) || this._t.saveError
+      console.error('[dotrino-profile] save failed:', e); this._error = this._t.saveError
     } finally { this._blocking = false; this._render() }
   }
 
@@ -714,7 +714,7 @@ class DotrinoProfile extends HTMLElement {
       else this._render()
     } catch (e) {
       this._saving = false
-      this._error = (e && e.message) || this._t.saveError
+      console.error('[dotrino-profile] save failed:', e); this._error = this._t.saveError
       this._render()
     }
   }
@@ -753,7 +753,7 @@ class DotrinoProfile extends HTMLElement {
       }
     } catch (e) {
       this._savingName = false
-      this._nameErr = (e && e.message) || this._t.saveError
+      console.error('[dotrino-profile] name save failed:', e); this._nameErr = this._t.saveError
       this._render()
     }
   }
