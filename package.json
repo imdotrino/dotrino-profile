@@ -47,8 +47,8 @@
     "url": "git+https://github.com/imdotrino/dotrino-profile.git"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "@dotrino/proxy-client": "0.44.0"
+    "@dotrino/proxy-client": "^0.44.1",
+    "typescript": "5.9.3"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
