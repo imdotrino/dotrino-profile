@@ -1,10 +1,11 @@
 {
   "name": "@dotrino/profile",
-  "version": "0.20.3",
+  "version": "0.21.0",
   "peerDependencies": {
-    "@dotrino/identity": ">=0.33.0"
+    "@dotrino/identity": ">=0.33.0",
+    "@dotrino/proxy-client": ">=0.44.0"
   },
-  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputación (confianza/afinidad, web-of-trust, reputación de la red). Autohosteado, Shadow DOM, temable por CSS vars.",
+  "description": "Web Component (custom element) <dotrino-profile> reutilizable por cualquier app del ecosistema Dotrino: tarjeta de perfil + reputación (confianza/afinidad, web-of-trust, reputación de la red), y los amigos: añadir, aceptar y escribir a todos sus aparatos (@dotrino/profile/friends y /friends-ui). Autohosteado, Shadow DOM, temable por CSS vars.",
   "type": "module",
   "main": "src/index.js",
   "module": "src/index.js",
@@ -13,6 +14,14 @@
     ".": {
       "types": "./src/index.d.ts",
       "import": "./src/index.js"
+    },
+    "./friends": {
+      "types": "./src/friends/index.d.ts",
+      "import": "./src/friends/index.js"
+    },
+    "./friends-ui": {
+      "types": "./src/friends/ui.d.ts",
+      "import": "./src/friends/ui.js"
     }
   },
   "files": [
@@ -27,7 +36,9 @@
     "profile",
     "reputation",
     "web-of-trust",
-    "cross-app"
+    "cross-app",
+    "friends",
+    "contacts"
   ],
   "author": "seyacat",
   "license": "MIT",
@@ -36,9 +47,19 @@
     "url": "git+https://github.com/imdotrino/dotrino-profile.git"
   },
   "devDependencies": {
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "@dotrino/proxy-client": "0.44.0"
   },
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependenciesMeta": {
+    "@dotrino/proxy-client": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@dotrino/qr": "0.3.1"
   }
 }

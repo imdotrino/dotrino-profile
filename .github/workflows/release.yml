@@ -42,9 +42,9 @@ jobs:
       # la lista de rotas más nueva. Va antes de publicar: aquí sí frena.
       - run: npx --yes @dotrino/roadmap@latest check
 
-      # SIN PRUEBAS. `@dotrino/profile` no tiene script `test`, y se dice aquí en vez de
-      # simular que sí: publicar sin red es una decisión, no un descuido. Es deuda.
-      - run: echo "::warning::este paquete se publica SIN pruebas"
+      # LAS PRUEBAS ANTES DE PUBLICAR (desde 0.21.0, las de los amigos). Una versión que no
+      # pasa su suite no llega a npm.
+      - run: npm test
 
       - name: SBOM (CycloneDX)
         run: |

@@ -96,6 +96,40 @@ el.provider = createVaultProfileProvider({ identity, reputation })
 - `cc-profile-refresh` — `detail { pubkey }` (botón ↻ del Web of Trust; la app
   puede difundir un `RATING_QUERY` a sus contactos).
 
+## Amigos (0.21.0+)
+
+Añadir amigos desde **cualquier app**, y que aparezcan en todas: la libreta es la de
+`@dotrino/identity`. Salió del messenger (dueño, 2026-10-23: *«que los amigos no sean exclusivos
+de messenger»*). Como la tarjeta, no abre conexiones propias: la app le pasa la identidad y el
+cliente del transporte (`@dotrino/proxy-client` ≥ 0.44.0, con `requireSealed`).
+
+```js
+import { createFriends } from '@dotrino/profile/friends'   // sin DOM: también en Node
+import '@dotrino/profile/friends-ui'                        // <dotrino-add-friend>, <dotrino-friend-requests>
+
+const friends = createFriends({ identity, client, nickname: () => miApodo, inboxKey: 'mi-app:requests' })
+// Lo que llega por el transporte pasa primero por aquí: autentica, descarta bloqueados y
+// atiende las solicitudes. Lo que no es del protocolo vuelve con quién lo mandó.
+client.on('message', async (from, payload, meta) => {
+  const r = await friends.receive(from, payload, meta)
+  if (r && !r.handled && r.who.contact) miApp(r.who, payload)
+})
+
+addEl.friends = friends          // tu código y su QR; teclear, pegar o escanear el del otro
+inboxEl.friends = friends        // las que llegan (aceptar / descartar) y las que mandaste
+await friends.send(pubkey, { type: 'HOLA' })   // a TODOS los aparatos de su cuenta
+```
+
+| Pieza | Qué hace |
+|---|---|
+| libreta (`friends.book`) | por cuenta: qué tarjeta de perfil vale (`ownCard`, `cardOf`), de qué cuenta es un aparato (`accountFromCard`), a qué aparatos se escribe (`recipientsOf`), bloqueados, fijos |
+| bandeja (`friends.inbox`) | solicitudes en los dos sentidos, 24 h, por la clave que le des (una por cuenta) |
+| protocolo | `CONTACT_REQUEST` / `CONTACT_ACCEPT`, sellados; quién escribió lo dice la llave que selló el sobre. Aceptar es de los dos; sin incidente si llegan varias |
+| tu código | `friends.code` (6 caracteres del proxio, se renueva solo y tras usarse), `requestByCode(code)` |
+| `hooks` | lo que es de tu app: `onRequest` (avisar), `onFriend` (ya sois amigos), `onMoved` (un amigo pasó de aparato a cuenta), `onProfile` (su versión), `isVouched` |
+
+La versión nativa (Kotlin y Swift, con «Cerca» por Bluetooth y red local) vive en `dotrino-native`.
+
 ## Tema (CSS custom properties)
 
 Todas con fallback a las vars del messenger (`--bg-1`, `--accent`, …) y luego a
