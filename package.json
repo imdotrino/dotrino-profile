@@ -1,6 +1,6 @@
 {
   "name": "@dotrino/profile",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "peerDependencies": {
     "@dotrino/identity": ">=0.33.0",
     "@dotrino/proxy-client": ">=0.44.0"

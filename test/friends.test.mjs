@@ -30,7 +30,7 @@ function network () {
     to.friends.receive(viaToken ? from.token : null, JSON.parse(JSON.stringify(payload)), { sealed: true, fromPubkey: viaToken ? undefined : from.pubkey, senderEncPub: from.encPub })
   })
   const join = (name) => {
-    const me = { pubkey: 'PK-' + name, token: 'TOK-' + name, encPub: 'ENC-' + name, code: null, sent: [] }
+    const me = { pubkey: 'PK-' + name, token: 'TOK-' + name, encPub: 'ENC-' + name, code: null, sent: [], via: [] }
     const client = {
       isConnected: true,
       async requestPairingCode () { me.code = ['K7M2Q9', 'A1C3E5', 'H7J9KM', 'N2P4QR'][codes++ % 4]; return { code: me.code, expiresAt: Date.now() + 60000 } },
@@ -40,8 +40,8 @@ function network () {
       async encPubOf (pk) { return people.get(pk)?.encPub || null },
       helloTo () {},
       async routeTo () { return 'proxy' },
-      async sendSealed (pk, payload) { me.sent.push(payload.type); const to = people.get(pk); if (!to) throw Object.assign(new Error('x'), { code: 'no-encpub' }); deliver(me, to, payload, false) },
-      async sendSealedTo (tok, payload) { me.sent.push(payload.type); const to = byToken(tok); if (!to) throw new Error('gone'); deliver(me, to, payload, true) },
+      async sendSealed (pk, payload) { me.sent.push(payload.type); me.via.push('pubkey'); const to = people.get(pk); if (!to) throw Object.assign(new Error('x'), { code: 'no-encpub' }); deliver(me, to, payload, false) },
+      async sendSealedTo (tok, payload) { me.sent.push(payload.type); me.via.push('token'); const to = byToken(tok); if (!to) throw new Error('gone'); deliver(me, to, payload, true) },
     }
     me.identity = fakeIdentity()
     me.requests = []
@@ -161,4 +161,18 @@ test('la bandeja caduca a las 24 h', () => {
   assert.equal(inbox.incoming.length, 1)
   t += 24 * 60 * 60 * 1000
   assert.equal(inbox.incoming.length, 0)
+})
+
+test('queue: aunque esté en línea, sale por pubkey (la cola del proxio), no por su token', async () => {
+  const net = network()
+  const ana = net.join('Ana'); const beto = net.join('Beto')
+  await ana.friends.request({ pubkey: 'PK-Beto' })
+  await settle()
+  await beto.friends.accept('PK-Ana')
+  await settle()
+  ana.friends.markOnline('PK-Beto', 'TOK-Beto')
+  ana.via.length = 0
+  await ana.friends.send('PK-Beto', { type: 'DM', text: 'en vivo' })
+  await ana.friends.send('PK-Beto', { type: 'DM', text: 'a la cola' }, { queue: true })
+  assert.deepEqual(ana.via, ['token', 'pubkey'])
 })

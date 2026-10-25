@@ -214,8 +214,10 @@ export function createFriends ({ identity, client, nickname, version = null, boo
    * directo — por token si está en línea en esta sesión (el único camino que sube a WebRTC),
    * por pubkey si no (la cola offline de 24 h). Falla solo si no llegó a ninguno; el mismo
    * mensaje dos veces lo descarta el otro lado por su id. `quiet`: sin timbrar su teléfono.
+   * `queue`: por pubkey aunque esté en línea — la cola del proxio, que lo guarda 24 h y se lo
+   * entrega al reconectar. Es el reintento de lo que salió en vivo y nadie confirmó.
    */
-  const send = async (pubkey, payload, { quiet = false } = {}) => {
+  const send = async (pubkey, payload, { quiet = false, queue = false } = {}) => {
     const c = book.find(pubkey)
     if (!c) throw Object.assign(new Error('friends: not a contact'), { code: 'not-contact' })
     const recipients = book.recipientsOf(c.publickey)
@@ -223,7 +225,7 @@ export function createFriends ({ identity, client, nickname, version = null, boo
     let sent = 0
     let last = null
     for (const r of recipients) {
-      const token = deviceTokens.get(r.pubkey) || (recipients.length === 1 ? online.get(c.publickey) : null)
+      const token = queue ? null : (deviceTokens.get(r.pubkey) || (recipients.length === 1 ? online.get(c.publickey) : null))
       try {
         if (token) {
           if (!greeted.has(token)) { try { client.helloTo(token) } catch (_) {} greeted.add(token) }

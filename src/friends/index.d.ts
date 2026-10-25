@@ -48,7 +48,7 @@ export interface Friends {
   accept (pubkey: string): Promise<void>
   dismiss (pubkey: string, dir?: 'in' | 'out'): void
   receive (fromToken: string | null, payload: any, meta?: any): Promise<{ who: Who; handled: boolean } | null>
-  send (pubkey: string, payload: any, opts?: { quiet?: boolean }): Promise<void>
+  send (pubkey: string, payload: any, opts?: { quiet?: boolean, queue?: boolean }): Promise<void>
   routeOf (pubkey: string): Promise<string>
   authenticate (fromToken: string | null, meta: any): Promise<Who | null>
   noteProfile (pubkey: string, payload: any): Promise<void>
